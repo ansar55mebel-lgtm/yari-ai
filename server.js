@@ -104,7 +104,7 @@ app.post("/api/proactive", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
         model: MODEL,
@@ -121,8 +121,6 @@ app.post("/api/proactive", async (req, res) => {
   }
 });
 
-const var PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`ИИшка слушает на порту ${PORT}`);
-});
+ var PORT=process.env.PORT||10000;app.listen(PORT,'0.0.0.0',()=>{console.log(`PORT:${PORT}`)});
+
 
