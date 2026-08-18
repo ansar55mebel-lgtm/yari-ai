@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = process.env.MODEL || "anthropic/claude-sonnet-4.5";
+const MODEL = "openrouter/free";
 
 // ---------------------------------------------------------------
 // ХАРАКТЕР ИИШКИ. Меняй этот текст, чтобы подстроить личность.
