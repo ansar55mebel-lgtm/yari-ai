@@ -121,7 +121,7 @@ app.post("/api/proactive", async (req, res) => {
   }
 });
 
-const const PORT = process.env.PORT || 10000;
+const var PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`ИИшка слушает на порту ${PORT}`);
 });
