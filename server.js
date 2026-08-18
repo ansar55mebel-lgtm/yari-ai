@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = "openrouter/free";
+const MODEL = process.env.MODEL || "deepseek/deepseek-chat:free";
 
 // ---------------------------------------------------------------
 // ХАРАКТЕР ИИШКИ. Меняй этот текст, чтобы подстроить личность.
