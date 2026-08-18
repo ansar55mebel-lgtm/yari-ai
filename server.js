@@ -96,15 +96,13 @@ app.post("/api/chat", async (req, res) => {
 app.post("/api/proactive", async (req, res) => {
   try {
     const { messages } = req.body;
-    const prompt = `${SYSTEM_PROMPT}
-
-Пользователь молчит уже какое-то время. Напиши ОДНО короткое сообщение, будто это ты сама вспомнила о разговоре и решила написать первой — не спрашивай "чем помочь", а зацепись за что-то из предыдущего разговора или просто скажи что-то в своём духе. Коротко, 1-2 предложения.`;
+    const prompt = `${SYSTEM_PROMPT}\n\nПользователь молчит уже какое-то время. Напиши ОДНО короткое сообщение, будто это ты сама вспомнила о разговоре и решила написать первой — не спрашивай "чем помочь", а зацепись за что-то из предыдущего разговора или просто скажи что то в своем духе. Коротко, 1-2 предложения.`;
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_KEY}`,
       },
       body: JSON.stringify({
         model: MODEL,
