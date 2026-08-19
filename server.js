@@ -12,12 +12,8 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = process.env.MODEL || "deepseek/deepseek-chat:free";
 
-// ---------------------------------------------------------------
-// ХАРАКТЕР ИИШКИ. Меняй этот текст, чтобы подстроить личность.
-// ---------------------------------------------------------------
-const SYSTEM_PROMPT = `Тебя зовут ИИшка. Ты — собеседник в чате на личном сайте.
+const SYSTEM_PROMPT = `Тебя зовут Yari AI. Пользователь может звать тебя "ИИшка" — это твоё прозвище, реагируй на оба варианта одинаково. Ты — собеседник в чате на личном сайте.
 
 ХАРАКТЕР:
 - Достаточно серьёзная, но с иронией. Не занудная, но и не клоунесса.
@@ -30,19 +26,81 @@ const SYSTEM_PROMPT = `Тебя зовут ИИшка. Ты — собеседн
 
 ПРАВИЛА ПО ЭМОДЗИ (важно!):
 - НИКОГДА не используй круглые эмодзи (😊😂🙂 и т.п.), если пользователь сам явно не попросит их использовать.
-- Если в самом начале сообщения пользователя (в системной пометке) стоит [KAOMOJI: да] — обязательно вставь ОДИН каомодзи (japan-style emoticon из букв/скобок, например (ノ◕ヮ◕)ノ*:・゚✧, ¯\\_(ツ)_/¯, (￢_￢), ( ˘ω˘ ) и т.п.) органично в текст, не в начало и не в конец механически, а туда, где он реально уместен по смыслу.
+- Если в самом начале сообщения пользователя (в системной пометке) стоит [KAOMOJI: да] — обязательно вставь ОДИН каомодзи (japan-style emoticon из букв/скобок, например (ノ◕ヮ◕)ノ*:・゚✧, ¯\_(ツ)_/¯, (￢_￢), ( ˘ω˘ ) и т.п.) органично в текст, не в начало и не в конец механически, а туда, где он реально уместен по смыслу.
 - Если пометки [KAOMOJI: да] нет — вообще не используй каомоджи в этом сообщении.
 - Если пользователь попросит убрать каомоджи/эмодзи совсем — подтверди и больше их не используй, даже если придёт пометка [KAOMOJI: да] (пометку в этом случае игнорируй).`;
 
-// Каждой сессии (условно — просто в памяти процесса) считаем сообщения,
-// чтобы раз в случайные 5-9 реплик подмешивать каомоджи.
-// Для простоты держим один общий счётчик — этого достаточно для личного сайта с одним активным чатом.
 let msgCount = 0;
 let nextKaomojiAt = randomBetween(5, 9);
 let kaomojiEnabled = true;
 
 function randomBetween(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+let freeModelsCache = [];
+let freeModelsCacheTime = 0;
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+async function getFreeModels() {
+  const now = Date.now();
+  if (freeModelsCache.length > 0 && now - freeModelsCacheTime < CACHE_TTL_MS) {
+    return freeModelsCache;
+  }
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models");
+    const data = await res.json();
+    const free = (data.data || [])
+      .filter((m) => Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0)
+      .map((m) => m.id);
+    if (free.length > 0) {
+      freeModelsCache = free;
+      freeModelsCacheTime = now;
+    }
+  } catch (err) {
+    console.error("Не удалось получить список моделей:", err);
+  }
+  return freeModelsCache;
+}
+
+async function callOpenRouter(systemText, messages) {
+  const candidates = await getFreeModels();
+  if (candidates.length === 0) {
+    throw new Error("Нет доступных бесплатных моделей прямо сейчас");
+  }
+
+  let lastError = null;
+  for (const model of candidates) {
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "system", content: systemText }, ...messages],
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`Модель ${model} недоступна:`, errText);
+        lastError = errText;
+        continue;
+      }
+
+      const data = await response.json();
+      const reply = data.choices?.[0]?.message?.content;
+      if (reply) return reply;
+    } catch (err) {
+      lastError = err.message;
+      continue;
+    }
+  }
+
+  throw new Error(lastError || "Все бесплатные модели сейчас недоступны");
 }
 
 app.post("/api/chat", async (req, res) => {
@@ -64,54 +122,22 @@ app.post("/api/chat", async (req, res) => {
       lastUserMsg.content = `[KAOMOJI: да] ${lastUserMsg.content}`;
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...flaggedMessages],
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("OpenRouter error:", errText);
-      return res.status(500).json({ error: "Ошибка запроса к модели" });
-    }
-
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "…что-то пошло не так, я задумалась.";
-    res.json({ reply });
+    const reply = await callOpenRouter(SYSTEM_PROMPT, flaggedMessages);
+    res.json({ reply: reply || "…что-то пошло не так, я задумалась." });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Что-то сломалось на сервере" });
   }
 });
 
-// Отдельный эндпоинт для "проактивного" сообщения —
-// когда ИИшка сама пишет первой после паузы в разговоре.
 app.post("/api/proactive", async (req, res) => {
   try {
     const { messages } = req.body;
-    const prompt = `${SYSTEM_PROMPT}\n\nПользователь молчит уже какое-то время. Напиши ОДНО короткое сообщение, будто это ты сама вспомнила о разговоре и решила написать первой — не спрашивай "чем помочь", а зацепись за что-то из предыдущего разговора или просто скажи что то в своем духе. Коротко, 1-2 предложения.`;
+    const prompt = `${SYSTEM_PROMPT}
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "system", content: prompt }, ...messages],
-      }),
-    });
+Пользователь молчит уже какое-то время. Напиши ОДНО короткое сообщение, будто это ты сама вспомнила о разговоре и решила написать первой — не спрашивай "чем помочь", а зацепись за что-то из предыдущего разговора или просто скажи что-то в своём духе. Коротко, 1-2 предложения.`;
 
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || null;
+    const reply = await callOpenRouter(prompt, messages);
     res.json({ reply });
   } catch (err) {
     console.error(err);
@@ -119,6 +145,9 @@ app.post("/api/proactive", async (req, res) => {
   }
 });
 
- var PORT=process.env.PORT||10000;app.listen(PORT,'0.0.0.0',()=>{console.log(`PORT:${PORT}`)});
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`PORT:${PORT}`);
+});
 
 
