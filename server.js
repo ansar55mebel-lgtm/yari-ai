@@ -70,8 +70,11 @@ async function callOpenRouter(systemText, messages) {
   }
 
   let lastError = null;
-  for (const model of candidates) {
+  for (const model of candidates.slice(0, 6)) {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -82,7 +85,9 @@ async function callOpenRouter(systemText, messages) {
           model,
           messages: [{ role: "system", content: systemText }, ...messages],
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!response.ok) {
         const errText = await response.text();
@@ -95,6 +100,7 @@ async function callOpenRouter(systemText, messages) {
       const reply = data.choices?.[0]?.message?.content;
       if (reply) return reply;
     } catch (err) {
+      console.error(`Модель ${model} не ответила вовремя:`, err.message);
       lastError = err.message;
       continue;
     }
