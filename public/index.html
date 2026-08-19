@@ -30,5 +30,40 @@
 
   <script src="app.js"></script>
 </body>
+</html><!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Yari AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-left">
+        <button class="chats-toggle" id="chatsToggle">чаты ▾</button>
+        <div class="header-name">Yari</div>
+      </div>
+      <div class="header-right">
+        <button class="new-chat-btn" id="newChatBtn">+ новый</button>
+        <div class="header-status" id="status">на связи</div>
+      </div>
+    </header>
+
+    <div class="chats-panel" id="chatsPanel"></div>
+
+    <main class="chat" id="chat"></main>
+
+    <form class="composer" id="composer">
+      <textarea id="input" placeholder="напиши что-нибудь…" rows="1"></textarea>
+      <button type="submit" id="send">отправить</button>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+</body>
 </html>
 
