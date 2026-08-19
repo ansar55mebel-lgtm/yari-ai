@@ -168,3 +168,69 @@ html, body {
   font-size: 12px;
   color: var(--text-dim);
 }
+/* --- Список чатов и хедер v2 --- */
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chats-toggle, .new-chat-btn {
+  background: transparent;
+  border: 1px solid #3a4042;
+  color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-transform: lowercase;
+}
+
+.chats-toggle:hover, .new-chat-btn:hover {
+  border-color: var(--mustard);
+  color: var(--mustard);
+}
+
+.chats-panel {
+  display: none;
+  flex-direction: column;
+  background: var(--ink-soft);
+  border-bottom: 1px solid #33383a;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.chats-panel.open {
+  display: flex;
+}
+
+.chat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  font-size: 13px;
+  color: var(--paper);
+  border-bottom: 1px solid #2a2e30;
+  cursor: pointer;
+}
+
+.chat-item:hover {
+  background: #2a2e30;
+}
+
+.chat-item.active {
+  color: var(--mustard);
+}
+
+.chat-item-delete {
+  color: var(--rose);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.proactive-gap {
+  height: 4px;
+}
