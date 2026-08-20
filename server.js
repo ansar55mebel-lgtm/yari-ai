@@ -4,10 +4,11 @@ import fetch from "node-fetch";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
-const sessions = new Map(); // token -> { role }
+const sessions = new Map(); // token -> { role }  (dev/tester-разлочка, не трогаем)
 const stylePatches = []; // в памяти; при желании потом перенесём в файл
 const feedbackQueue = []; // правки от тестировщиков, ждут approve
 
@@ -30,6 +31,33 @@ app.use(express.static(path.join(__dirname, "public")));
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
 const CF_API_TOKEN = process.env.CF_API_TOKEN;
 const CF_MODEL = "@cf/qwen/qwen3.8-27b";
+
+// ===== SUPABASE (авторизация + хранение чатов) =====
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+// Проверяет JWT-токен пользователя из заголовка Authorization: Bearer <token>
+// и кладёт req.userId. Если токена нет/невалиден — 401.
+async function requireUser(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    return res.status(401).json({ error: "Нет токена авторизации" });
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    return res.status(401).json({ error: "Токен недействителен, войдите заново" });
+  }
+
+  req.userId = data.user.id;
+  next();
+}
 
 const SYSTEM_PROMPT = `Тебя зовут Yari AI. Пользователь может звать тебя "ИИшка" — это твоё прозвище, реагируй на оба варианта одинаково. Ты — собеседник в чате на личном сайте.
 
@@ -219,6 +247,149 @@ app.get("/api/dev/status", (req, res) => {
     patchesCount: stylePatches.length,
     feedbackQueueLength: feedbackQueue.length,
   });
+});
+
+// ===== АВТОРИЗАЦИЯ =====
+
+// Регистрация: создаём юзера в Supabase Auth и сразу логиним,
+// чтобы не заставлять юзера логиниться отдельным шагом.
+app.post("/api/register", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Нужны email и пароль" });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: "Пароль должен быть от 6 символов" });
+  }
+
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true, // не требуем подтверждение почты — это личный проект
+  });
+
+  if (error) {
+    // Supabase возвращает понятную ошибку, если email уже занят
+    return res.status(400).json({ error: error.message });
+  }
+
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (signInError) {
+    return res.status(400).json({ error: signInError.message });
+  }
+
+  res.json({
+    ok: true,
+    token: signInData.session.access_token,
+    userId: signInData.user.id,
+    email: signInData.user.email,
+  });
+});
+
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Нужны email и пароль" });
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    return res.status(401).json({ error: "Неверный email или пароль" });
+  }
+
+  res.json({
+    ok: true,
+    token: data.session.access_token,
+    userId: data.user.id,
+    email: data.user.email,
+  });
+});
+
+// ===== ЧАТЫ (синхронизация между устройствами) =====
+
+app.get("/api/chats", requireUser, async (req, res) => {
+  const { data, error } = await supabase
+    .from("chats")
+    .select("*")
+    .eq("user_id", req.userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ chats: data });
+});
+
+app.post("/api/chats", requireUser, async (req, res) => {
+  const { title, messages_json } = req.body;
+
+  const { data, error } = await supabase
+    .from("chats")
+    .insert({
+      user_id: req.userId,
+      title: title || "Новый чат",
+      messages_json: messages_json || [],
+    })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ chat: data });
+});
+
+app.put("/api/chats/:id", requireUser, async (req, res) => {
+  const { id } = req.params;
+  const { title, messages_json } = req.body;
+
+  const updates = { updated_at: new Date().toISOString() };
+  if (title !== undefined) updates.title = title;
+  if (messages_json !== undefined) updates.messages_json = messages_json;
+
+  const { data, error } = await supabase
+    .from("chats")
+    .update(updates)
+    .eq("id", id)
+    .eq("user_id", req.userId) // важно: не даём редактировать чужие чаты
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ chat: data });
+});
+
+app.delete("/api/chats/:id", requireUser, async (req, res) => {
+  const { id } = req.params;
+
+  const { error } = await supabase
+    .from("chats")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", req.userId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// Разовый перенос старых чатов из localStorage при первом входе после обновления
+app.post("/api/chats/import", requireUser, async (req, res) => {
+  const { chats } = req.body; // ожидаем массив [{title, messages}]
+  if (!Array.isArray(chats) || chats.length === 0) {
+    return res.json({ ok: true, imported: 0 });
+  }
+
+  const rows = chats.map((c) => ({
+    user_id: req.userId,
+    title: c.title || "Чат",
+    messages_json: c.messages || c.messages_json || [],
+  }));
+
+  const { data, error } = await supabase.from("chats").insert(rows).select();
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ ok: true, imported: data.length, chats: data });
 });
 
 const PORT = process.env.PORT || 10000;
