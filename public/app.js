@@ -117,6 +117,112 @@ newChatBtn.addEventListener("click", () => {
   switchChat(c.id);
 });
 
+// ===== Разблокировка ролей (тестировщик / разработчик) =====
+
+async function tryUnlock(text) {
+  try {
+    const res = await fetch("/api/unlock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: text.trim() }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      localStorage.setItem("yari_role", data.role);
+      localStorage.setItem("yari_token", data.token);
+      renderRolePanel();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+function renderRolePanel() {
+  const role = localStorage.getItem("yari_role");
+  if (!role) return;
+  if (document.getElementById("rolePanel")) return; // не дублировать
+
+  const header = document.querySelector(".header-right");
+  if (!header) return;
+
+  const panel = document.createElement("div");
+  panel.id = "rolePanel";
+  panel.style.display = "flex";
+  panel.style.gap = "8px";
+
+  const infoBtn = document.createElement("button");
+  infoBtn.className = "chats-toggle";
+  infoBtn.textContent = "инфо";
+  infoBtn.addEventListener("click", showDevInfo);
+  panel.appendChild(infoBtn);
+
+  if (role === "dev") {
+    const queueBtn = document.createElement("button");
+    queueBtn.className = "chats-toggle";
+    queueBtn.textContent = "очередь";
+    queueBtn.addEventListener("click", showFeedbackQueue);
+    panel.appendChild(queueBtn);
+  }
+
+  header.appendChild(panel);
+}
+
+async function showDevInfo() {
+  const token = localStorage.getItem("yari_token");
+  try {
+    const res = await fetch("/api/dev/status", {
+      headers: { "x-yari-token": token },
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert("нет доступа к этой информации");
+      return;
+    }
+    alert(`модель: ${data.currentModel}\nпатчей стиля: ${data.patchesCount}\nв очереди правок: ${data.feedbackQueueLength}`);
+  } catch (err) {
+    alert("не удалось получить статус");
+  }
+}
+
+async function showFeedbackQueue() {
+  const token = localStorage.getItem("yari_token");
+  try {
+    const res = await fetch("/api/dev/feedback-queue", {
+      headers: { "x-yari-token": token },
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert("нет доступа");
+      return;
+    }
+    if (!data.queue.length) {
+      alert("очередь правок пуста");
+      return;
+    }
+    const text = data.queue
+      .map((f, i) => `${i + 1}) реакция: ${f.reaction || "-"}${f.correction ? "\nправка: " + f.correction : ""}`)
+      .join("\n\n");
+    alert(text);
+  } catch (err) {
+    alert("не удалось получить очередь");
+  }
+}
+
+async function sendFeedback(originalReply, reaction, correction) {
+  const token = localStorage.getItem("yari_token");
+  try {
+    await fetch("/api/tester/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-yari-token": token },
+      body: JSON.stringify({ originalReply, reaction, correction }),
+    });
+  } catch (err) {
+    // тихо промолчим
+  }
+}
+
 function addMessageToDOM(role, text, opts = {}) {
   const wrap = document.createElement("div");
   wrap.className = `msg msg-${role === "assistant" ? "bot" : "user"}${opts.proactive ? " msg-proactive" : ""}`;
@@ -131,6 +237,38 @@ function addMessageToDOM(role, text, opts = {}) {
 
   wrap.appendChild(label);
   wrap.appendChild(bubble);
+
+  const userRole = localStorage.getItem("yari_role");
+  if (role === "assistant" && (userRole === "tester" || userRole === "dev")) {
+    const feedbackBar = document.createElement("div");
+    feedbackBar.style.display = "flex";
+    feedbackBar.style.gap = "6px";
+    feedbackBar.style.marginTop = "4px";
+
+    const up = document.createElement("button");
+    up.textContent = "👍";
+    up.className = "chats-toggle";
+    up.addEventListener("click", () => sendFeedback(text, "up"));
+
+    const down = document.createElement("button");
+    down.textContent = "👎";
+    down.className = "chats-toggle";
+    down.addEventListener("click", () => sendFeedback(text, "down"));
+
+    const fix = document.createElement("button");
+    fix.textContent = "исправить";
+    fix.className = "chats-toggle";
+    fix.addEventListener("click", () => {
+      const correction = prompt("как надо было ответить:");
+      if (correction) sendFeedback(text, null, correction);
+    });
+
+    feedbackBar.appendChild(up);
+    feedbackBar.appendChild(down);
+    feedbackBar.appendChild(fix);
+    wrap.appendChild(feedbackBar);
+  }
+
   chat.appendChild(wrap);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -183,20 +321,20 @@ async function sendMessage(text) {
   renderChatsPanel();
 
   const typingEl = document.createElement("div");
-typingEl.className = "msg msg-bot";
+  typingEl.className = "msg msg-bot";
 
-const typingLabel = document.createElement("div");
-typingLabel.className = "msg-label";
-typingLabel.textContent = "Yari";
+  const typingLabel = document.createElement("div");
+  typingLabel.className = "msg-label";
+  typingLabel.textContent = "Yari";
 
-const typingBubble = document.createElement("div");
-typingBubble.className = "msg-bubble typing-indicator";
-typingBubble.innerHTML = "<span></span><span></span><span></span>";
+  const typingBubble = document.createElement("div");
+  typingBubble.className = "msg-bubble typing-indicator";
+  typingBubble.innerHTML = "<span></span><span></span><span></span>";
 
-typingEl.appendChild(typingLabel);
-typingEl.appendChild(typingBubble);
-chat.appendChild(typingEl);
-chat.scrollTop = chat.scrollHeight;
+  typingEl.appendChild(typingLabel);
+  typingEl.appendChild(typingBubble);
+  chat.appendChild(typingEl);
+  chat.scrollTop = chat.scrollHeight;
 
   try {
     const res = await fetch("/api/chat", {
@@ -259,12 +397,16 @@ async function checkProactive() {
   }
 }
 
-form.addEventListener("submit", (e) => {
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = input.value.trim();
   if (!text) return;
   input.value = "";
   input.style.height = "auto";
+
+  const unlocked = await tryUnlock(text);
+  if (unlocked) return; // код не должен попадать в обычный чат
+
   sendMessage(text);
 });
 
@@ -286,3 +428,4 @@ saveStore(store);
 renderChatsPanel();
 renderMessages();
 checkProactive();
+renderRolePanel();
