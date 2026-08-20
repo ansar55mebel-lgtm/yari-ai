@@ -4,10 +4,18 @@ const input = document.getElementById("input");
 const chatsToggle = document.getElementById("chatsToggle");
 const chatsPanel = document.getElementById("chatsPanel");
 const newChatBtn = document.getElementById("newChatBtn");
+const profileToggle = document.getElementById("profileToggle");
+const profilePanel = document.getElementById("profilePanel");
+const swatchesEl = document.getElementById("swatches");
+const customColorEl = document.getElementById("customColor");
+const radiusSlider = document.getElementById("radiusSlider");
+const radiusPreview = document.getElementById("radiusPreview");
 
 const STORAGE_KEY = "yari_chats_v1";
+const PROFILE_KEY = "yari_profile_v1";
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
+const DEFAULT_PROFILE = { color: "#e2a48f", radius: 14 };
 
 function loadStore() {
   try {
@@ -109,6 +117,7 @@ function deleteChat(id) {
 
 chatsToggle.addEventListener("click", () => {
   chatsPanel.classList.toggle("open");
+  profilePanel.classList.remove("open");
 });
 
 newChatBtn.addEventListener("click", () => {
@@ -116,6 +125,70 @@ newChatBtn.addEventListener("click", () => {
   store.chats.push(c);
   switchChat(c.id);
 });
+
+// ===== Профиль: цвет и угловатость облачка пользователя =====
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (!raw) return { ...DEFAULT_PROFILE };
+    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+  } catch (e) {
+    return { ...DEFAULT_PROFILE };
+  }
+}
+
+function saveProfile(profile) {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+function applyProfile(profile) {
+  document.documentElement.style.setProperty("--user-bubble-color", profile.color);
+  document.documentElement.style.setProperty("--bubble-radius", profile.radius + "px");
+
+  if (swatchesEl) {
+    swatchesEl.querySelectorAll(".swatch").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.color.toLowerCase() === profile.color.toLowerCase());
+    });
+  }
+  if (radiusSlider) radiusSlider.value = profile.radius;
+}
+
+let profile = loadProfile();
+applyProfile(profile);
+
+if (profileToggle) {
+  profileToggle.addEventListener("click", () => {
+    profilePanel.classList.toggle("open");
+    chatsPanel.classList.remove("open");
+  });
+}
+
+if (swatchesEl) {
+  swatchesEl.querySelectorAll(".swatch").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      profile.color = btn.dataset.color;
+      saveProfile(profile);
+      applyProfile(profile);
+    });
+  });
+}
+
+if (customColorEl) {
+  customColorEl.addEventListener("input", () => {
+    profile.color = customColorEl.value;
+    saveProfile(profile);
+    applyProfile(profile);
+  });
+}
+
+if (radiusSlider) {
+  radiusSlider.addEventListener("input", () => {
+    profile.radius = Number(radiusSlider.value);
+    saveProfile(profile);
+    applyProfile(profile);
+  });
+}
 
 // ===== Разблокировка ролей (тестировщик / разработчик) =====
 
@@ -329,7 +402,8 @@ async function sendMessage(text) {
 
   const typingBubble = document.createElement("div");
   typingBubble.className = "msg-bubble typing-indicator";
-  typingBubble.innerHTML = "<span></span><span></span><span></span>";
+  typingBubble.innerHTML =
+    '<span class="typing-text">печатает</span><span class="typing-dots"><span></span><span></span><span></span></span>';
 
   typingEl.appendChild(typingLabel);
   typingEl.appendChild(typingBubble);
