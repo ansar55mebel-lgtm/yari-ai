@@ -27,12 +27,9 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const HF_KEY = process.env.HF_API_KEY;
-const MODELS = [
-  "meta-llama/Llama-3.1-8B-Instruct",
-  "Qwen/Qwen2.5-7B-Instruct",
-  "google/gemma-2-9b-it",
-];
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID;
+const CF_API_TOKEN = process.env.CF_API_TOKEN;
+const CF_MODEL = "@cf/qwen/qwen3.8-27b";
 
 const SYSTEM_PROMPT = `Тебя зовут Yari AI. Пользователь может звать тебя "ИИшка" — это твоё прозвище, реагируй на оба варианта одинаково. Ты — собеседник в чате на личном сайте.
 
@@ -61,43 +58,48 @@ function randomBetween(min, max) {
 }
 
 async function callHF(systemText, messages) {
-  let lastError = null;
-  for (const model of MODELS) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
 
-      const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
+  try {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_MODEL}`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${HF_KEY}`,
+          Authorization: `Bearer ${CF_API_TOKEN}`,
         },
         body: JSON.stringify({
-          model,
           messages: [{ role: "system", content: systemText }, ...messages],
         }),
         signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`Модель ${model} недоступна:`, errText);
-        lastError = errText;
-        continue;
       }
+    );
+    clearTimeout(timeout);
 
-      const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content;
-      if (reply) return reply;
-    } catch (err) {
-      console.error(`Модель ${model} ошибка:`, err.message);
-      lastError = err.message;
-      continue;
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Cloudflare Workers AI недоступен:", errText);
+      throw new Error(errText);
     }
+
+    const data = await response.json();
+
+    if (!data.success) {
+      const errMsg = JSON.stringify(data.errors || data);
+      console.error("Cloudflare Workers AI вернул ошибку:", errMsg);
+      throw new Error(errMsg);
+    }
+
+    const reply = data.result?.response;
+    if (!reply) throw new Error("Пустой ответ от модели");
+    return reply;
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error("Ошибка запроса к Workers AI:", err.message);
+    throw new Error(err.message || "Модель сейчас недоступна");
   }
-  throw new Error(lastError || "Все модели сейчас недоступны");
 }
 
 app.post("/api/chat", async (req, res) => {
@@ -202,7 +204,7 @@ app.post("/api/dev/dismiss-feedback", (req, res) => {
 app.get("/api/dev/status", (req, res) => {
   if (getRoleFromRequest(req) !== "dev") return res.status(403).json({ error: "no access" });
   res.json({
-    currentModel: MODELS[0],
+    currentModel: CF_MODEL,
     patchesCount: stylePatches.length,
     feedbackQueueLength: feedbackQueue.length,
   });
