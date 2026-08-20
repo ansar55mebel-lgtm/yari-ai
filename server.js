@@ -1,4 +1,11 @@
-const crypto = require("crypto");
+import express from "express";
+import dotenv from "dotenv";
+import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+import crypto from "crypto";
+
+dotenv.config();
 
 const sessions = new Map(); // token -> { role }
 const stylePatches = []; // в памяти; при желании потом перенесём в файл
@@ -14,14 +21,6 @@ function getRoleFromRequest(req) {
   const session = sessions.get(token);
   return session ? session.role : null;
 }
-
-import express from "express";
-import dotenv from "dotenv";
-import fetch from "node-fetch";
-import path from "path";
-import { fileURLToPath } from "url";
-
-dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -49,7 +48,7 @@ const SYSTEM_PROMPT = `Тебя зовут Yari AI. Пользователь м�
 
 ПРАВИЛА ПО ЭМОДЗИ:
 - НИКОГДА не используй круглые эмодзи (😊😂🙂 и т.п.), только если пользователь сам явно попросит.
-- Если в начале сообщения пользователя стоит [KAOMOJI: да] — вставь ОДИН каомодзи (например (ノ◕ヮ◕)ノ, ¯\_(ツ)_/¯, ( ˘ω˘ )) органично по смыслу, не только в извинениях.
+- Если в начале сообщения пользователя стоит [KAOMOJI: да] — вставь ОДИН каомодзи (например (ノ◕ヮ◕)ノ, ¯\\_(ツ)_/¯, ( ˘ω˘ )) органично по смыслу, не только в извинениях.
 - Если пометки нет — вообще не используй каомоджи.
 - Если попросят убрать совсем — подтверди коротко и больше не используй, даже с пометкой.`;
 
@@ -120,7 +119,8 @@ app.post("/api/chat", async (req, res) => {
       lastUserMsg.content = `[KAOMOJI: да] ${lastUserMsg.content}`;
     }
 
-    const reply = await callHF(SYSTEM_PROMPT, flaggedMessages);
+    const fullSystemPrompt = SYSTEM_PROMPT + (stylePatches.length ? "\n\nДополнительные правила стиля:\n" + stylePatches.join("\n") : "");
+    const reply = await callHF(fullSystemPrompt, flaggedMessages);
     res.json({ reply: reply || "…что-то пошло не так, я задумалась." });
   } catch (err) {
     console.error(err);
@@ -141,6 +141,61 @@ app.post("/api/proactive", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Что-то сломалось на сервере" });
   }
+});
+
+app.post("/api/unlock", (req, res) => {
+  const { code } = req.body;
+
+  let role = null;
+  if (code === process.env.DEV_CODE) role = "dev";
+  else if (code === process.env.TESTER_CODE) role = "tester";
+
+  if (!role) {
+    return res.json({ ok: false });
+  }
+
+  const token = makeToken();
+  sessions.set(token, { role });
+  res.json({ ok: true, role, token });
+});
+
+app.post("/api/tester/feedback", (req, res) => {
+  const role = getRoleFromRequest(req);
+  if (role !== "tester" && role !== "dev") {
+    return res.status(403).json({ error: "no access" });
+  }
+
+  const { originalReply, reaction, correction } = req.body;
+
+  feedbackQueue.push({
+    originalReply,
+    reaction: reaction || null,
+    correction: correction || null,
+    createdAt: Date.now(),
+  });
+
+  res.json({ ok: true });
+});
+
+app.get("/api/dev/feedback-queue", (req, res) => {
+  if (getRoleFromRequest(req) !== "dev") return res.status(403).json({ error: "no access" });
+  res.json({ queue: feedbackQueue });
+});
+
+app.post("/api/dev/approve-patch", (req, res) => {
+  if (getRoleFromRequest(req) !== "dev") return res.status(403).json({ error: "no access" });
+  const { text } = req.body;
+  stylePatches.push(text);
+  res.json({ ok: true, patches: stylePatches });
+});
+
+app.get("/api/dev/status", (req, res) => {
+  if (getRoleFromRequest(req) !== "dev") return res.status(403).json({ error: "no access" });
+  res.json({
+    currentModel: MODELS[0],
+    patchesCount: stylePatches.length,
+    feedbackQueueLength: feedbackQueue.length,
+  });
 });
 
 const PORT = process.env.PORT || 10000;
