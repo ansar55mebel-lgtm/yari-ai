@@ -1,3 +1,20 @@
+const crypto = require("crypto");
+
+const sessions = new Map(); // token -> { role }
+const stylePatches = []; // в памяти; при желании потом перенесём в файл
+const feedbackQueue = []; // правки от тестировщиков, ждут approve
+
+function makeToken() {
+  return crypto.randomBytes(16).toString("hex");
+}
+
+function getRoleFromRequest(req) {
+  const token = req.headers["x-yari-token"];
+  if (!token) return null;
+  const session = sessions.get(token);
+  return session ? session.role : null;
+}
+
 import express from "express";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
