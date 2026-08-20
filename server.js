@@ -184,9 +184,19 @@ app.get("/api/dev/feedback-queue", (req, res) => {
 
 app.post("/api/dev/approve-patch", (req, res) => {
   if (getRoleFromRequest(req) !== "dev") return res.status(403).json({ error: "no access" });
-  const { text } = req.body;
-  stylePatches.push(text);
+  const { index } = req.body;
+  const item = feedbackQueue[index];
+  if (!item || !item.correction) return res.status(400).json({ error: "invalid item" });
+  stylePatches.push(item.correction);
+  feedbackQueue.splice(index, 1);
   res.json({ ok: true, patches: stylePatches });
+});
+
+app.post("/api/dev/dismiss-feedback", (req, res) => {
+  if (getRoleFromRequest(req) !== "dev") return res.status(403).json({ error: "no access" });
+  const { index } = req.body;
+  if (feedbackQueue[index]) feedbackQueue.splice(index, 1);
+  res.json({ ok: true });
 });
 
 app.get("/api/dev/status", (req, res) => {
