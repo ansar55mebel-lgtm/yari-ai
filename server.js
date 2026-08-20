@@ -72,6 +72,7 @@ async function callHF(systemText, messages) {
         },
         body: JSON.stringify({
           messages: [{ role: "system", content: systemText }, ...messages],
+          reasoning_effort: "low",
         }),
         signal: controller.signal,
       }
@@ -86,14 +87,24 @@ async function callHF(systemText, messages) {
 
     const data = await response.json();
 
-    if (!data.success) {
+    if (data.success === false) {
       const errMsg = JSON.stringify(data.errors || data);
       console.error("Cloudflare Workers AI вернул ошибку:", errMsg);
       throw new Error(errMsg);
     }
 
-    const reply = data.result?.response;
-    if (!reply) throw new Error("Пустой ответ от модели");
+    // У этой модели (reasoning/OpenAI-совместимая схема) ответ лежит в
+    // result.choices[0].message.content, а не в result.response как у старых моделей.
+    // Проверяем оба варианта на всякий случай.
+    const result = data.result ?? data;
+    const reply =
+      result?.response ||
+      result?.choices?.[0]?.message?.content;
+
+    if (!reply) {
+      console.error("Не удалось найти текст ответа в структуре:", JSON.stringify(data).slice(0, 500));
+      throw new Error("Пустой ответ от модели");
+    }
     return reply;
   } catch (err) {
     clearTimeout(timeout);
