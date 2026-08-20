@@ -183,10 +183,20 @@ async function sendMessage(text) {
   renderChatsPanel();
 
   const typingEl = document.createElement("div");
-  typingEl.className = "typing";
-  typingEl.textContent = "печатает…";
-  chat.appendChild(typingEl);
-  chat.scrollTop = chat.scrollHeight;
+typingEl.className = "msg msg-bot";
+
+const typingLabel = document.createElement("div");
+typingLabel.className = "msg-label";
+typingLabel.textContent = "Yari";
+
+const typingBubble = document.createElement("div");
+typingBubble.className = "msg-bubble typing-indicator";
+typingBubble.innerHTML = "<span></span><span></span><span></span>";
+
+typingEl.appendChild(typingLabel);
+typingEl.appendChild(typingBubble);
+chat.appendChild(typingEl);
+chat.scrollTop = chat.scrollHeight;
 
   try {
     const res = await fetch("/api/chat", {
