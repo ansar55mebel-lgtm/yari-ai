@@ -26,9 +26,15 @@
       <div class="header-right">
         <button class="new-chat-btn" id="newChatBtn">+ новый</button>
         <button class="chats-toggle" id="profileToggle">профиль</button>
+        <button class="chats-toggle" id="authToggle">войти</button>
         <div class="header-status" id="status">на связи</div>
       </div>
     </header>
+
+    <div class="guest-banner" id="guestBanner">
+      <span>гостевой режим: 1 чат, до 50 сообщений в день</span>
+      <button id="guestBannerBtn">войти / зарегистрироваться</button>
+    </div>
 
     <div class="chats-panel" id="chatsPanel"></div>
 
@@ -52,6 +58,24 @@
           <div class="radius-preview" id="radiusPreview"></div>
         </div>
       </div>
+    </div>
+
+    <div class="auth-panel" id="authPanel">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" type="button">вход</button>
+        <button class="auth-tab" id="tabRegister" type="button">регистрация</button>
+      </div>
+      <form class="auth-form" id="loginForm">
+        <input type="email" id="loginEmail" placeholder="email" required autocomplete="email" />
+        <input type="password" id="loginPassword" placeholder="пароль" required autocomplete="current-password" />
+        <button type="submit">войти</button>
+      </form>
+      <form class="auth-form" id="registerForm" style="display:none">
+        <input type="email" id="registerEmail" placeholder="email" required autocomplete="email" />
+        <input type="password" id="registerPassword" placeholder="пароль (от 6 символов)" required autocomplete="new-password" />
+        <button type="submit">зарегистрироваться</button>
+      </form>
+      <div class="auth-error" id="authError"></div>
     </div>
 
     <main class="chat" id="chat"></main>
