@@ -9,13 +9,72 @@ const profilePanel = document.getElementById("profilePanel");
 const swatchesEl = document.getElementById("swatches");
 const customColorEl = document.getElementById("customColor");
 const radiusSlider = document.getElementById("radiusSlider");
-const radiusPreview = document.getElementById("radiusPreview");
+const authToggle = document.getElementById("authToggle");
+const authPanel = document.getElementById("authPanel");
+const tabLogin = document.getElementById("tabLogin");
+const tabRegister = document.getElementById("tabRegister");
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const authError = document.getElementById("authError");
+const guestBanner = document.getElementById("guestBanner");
+const guestBannerBtn = document.getElementById("guestBannerBtn");
+
+// ===== Supabase / Edge Function =====
+const SUPABASE_URL = "https://prvwpqesbbmtzezxqcsl.supabase.co";
+const API_BASE = `${SUPABASE_URL}/functions/v1/super-responder`;
+const ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBydndwcWVzYmJtdHplenhxY3NsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxOTAwMjEsImV4cCI6MjEwMjc2NjAyMX0.cxcvjVPWrmpQolGvkrS8KaQYVKxfgjx9BA_brFXkhbs";
+
+const AUTH_TOKEN_KEY = "yari_auth_token";
+const AUTH_EMAIL_KEY = "yari_auth_email";
+
+function isLoggedIn() {
+  return !!localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+function authHeaders(extra = {}) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const headers = { apikey: ANON_KEY, ...extra };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
 
 const STORAGE_KEY = "yari_chats_v1";
 const PROFILE_KEY = "yari_profile_v1";
+const META_KEY = "yari_chat_meta_v1";
+const GUEST_LIMIT_KEY = "yari_guest_limit_v1";
+const GUEST_DAILY_LIMIT = 50;
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
 const DEFAULT_PROFILE = { color: "#e2a48f", radius: 14 };
+
+function randomGapMs() {
+  const days = MIN_GAP_DAYS + Math.random() * (MAX_GAP_DAYS - MIN_GAP_DAYS);
+  return days * 24 * 60 * 60 * 1000;
+}
+
+// ===== Гостевой дневной лимит =====
+
+function getGuestUsage() {
+  const today = new Date().toISOString().slice(0, 10);
+  let data;
+  try {
+    data = JSON.parse(localStorage.getItem(GUEST_LIMIT_KEY)) || { date: today, count: 0 };
+  } catch (e) {
+    data = { date: today, count: 0 };
+  }
+  if (data.date !== today) data = { date: today, count: 0 };
+  return data;
+}
+
+function incrementGuestUsage() {
+  const data = getGuestUsage();
+  data.count++;
+  localStorage.setItem(GUEST_LIMIT_KEY, JSON.stringify(data));
+  return data.count;
+}
+
+// ===== Локальное хранилище чатов (гостевой режим) =====
 
 function loadStore() {
   try {
@@ -31,11 +90,6 @@ function saveStore(store) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
 }
 
-function randomGapMs() {
-  const days = MIN_GAP_DAYS + Math.random() * (MAX_GAP_DAYS - MIN_GAP_DAYS);
-  return days * 24 * 60 * 60 * 1000;
-}
-
 function newChat() {
   return {
     id: "chat_" + Date.now(),
@@ -47,16 +101,90 @@ function newChat() {
   };
 }
 
-let store = loadStore();
-if (store.chats.length === 0) {
-  const c = newChat();
-  store.chats.push(c);
-  store.activeChatId = c.id;
-  saveStore(store);
+function loadGuestChat() {
+  store = loadStore();
+  if (store.chats.length === 0) {
+    const c = newChat();
+    store.chats.push(c);
+    store.activeChatId = c.id;
+    saveStore(store);
+  }
+  if (!store.activeChatId || !store.chats.find((c) => c.id === store.activeChatId)) {
+    store.activeChatId = store.chats[0].id;
+  }
 }
-if (!store.activeChatId || !store.chats.find((c) => c.id === store.activeChatId)) {
-  store.activeChatId = store.chats[0].id;
+
+// ===== Метаданные чатов для авторизованных юзеров (lastVisit/proactive — только локально) =====
+
+function loadMeta() {
+  try {
+    return JSON.parse(localStorage.getItem(META_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
 }
+
+function saveMeta(meta) {
+  localStorage.setItem(META_KEY, JSON.stringify(meta));
+}
+
+function getChatMeta(id) {
+  const meta = loadMeta();
+  if (!meta[id]) {
+    meta[id] = { lastVisit: Date.now(), nextProactiveAt: Date.now() + randomGapMs(), proactiveOff: false };
+    saveMeta(meta);
+  }
+  return meta[id];
+}
+
+function updateChatMeta(id, updates) {
+  const meta = loadMeta();
+  meta[id] = { ...(meta[id] || {}), ...updates };
+  saveMeta(meta);
+}
+
+function normalizeServerChat(row) {
+  const meta = getChatMeta(row.id);
+  return {
+    id: row.id,
+    title: row.title,
+    messages: row.messages_json || [],
+    lastVisit: meta.lastVisit,
+    nextProactiveAt: meta.nextProactiveAt,
+    proactiveOff: meta.proactiveOff,
+  };
+}
+
+async function persistChatToServer(c, titleChanged) {
+  const body = { messages_json: c.messages };
+  if (titleChanged) body.title = c.title;
+  await fetch(`${API_BASE}/chats/${c.id}`, {
+    method: "PUT",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+}
+
+async function loadServerChats() {
+  const res = await fetch(`${API_BASE}/chats`, { headers: authHeaders() });
+  if (res.status === 401) throw new Error("unauthorized");
+  const data = await res.json();
+  let chats = (data.chats || []).map(normalizeServerChat);
+
+  if (chats.length === 0) {
+    const createRes = await fetch(`${API_BASE}/chats`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ title: "новый чат", messages_json: [] }),
+    });
+    const createData = await createRes.json();
+    chats = [normalizeServerChat(createData.chat)];
+  }
+
+  store = { chats, activeChatId: chats[0].id };
+}
+
+let store = { chats: [], activeChatId: null };
 
 function getActiveChat() {
   return store.chats.find((c) => c.id === store.activeChatId);
@@ -77,16 +205,19 @@ function renderChatsPanel() {
         switchChat(c.id);
       });
 
-      const del = document.createElement("span");
-      del.className = "chat-item-delete";
-      del.textContent = "удалить";
-      del.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteChat(c.id);
-      });
-
       item.appendChild(label);
-      item.appendChild(del);
+
+      if (isLoggedIn()) {
+        const del = document.createElement("span");
+        del.className = "chat-item-delete";
+        del.textContent = "удалить";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteChat(c.id);
+        });
+        item.appendChild(del);
+      }
+
       chatsPanel.appendChild(item);
     });
 }
@@ -95,22 +226,35 @@ function switchChat(id) {
   store.activeChatId = id;
   const c = getActiveChat();
   c.lastVisit = Date.now();
-  saveStore(store);
+  if (isLoggedIn()) {
+    updateChatMeta(id, { lastVisit: c.lastVisit });
+  } else {
+    saveStore(store);
+  }
   renderChatsPanel();
   renderMessages();
   checkProactive();
 }
 
-function deleteChat(id) {
+async function deleteChat(id) {
+  if (!isLoggedIn()) return; // гость не может удалить единственный чат
+
+  await fetch(`${API_BASE}/chats/${id}`, { method: "DELETE", headers: authHeaders() });
   store.chats = store.chats.filter((c) => c.id !== id);
+
   if (store.chats.length === 0) {
-    const c = newChat();
-    store.chats.push(c);
+    const createRes = await fetch(`${API_BASE}/chats`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ title: "новый чат", messages_json: [] }),
+    });
+    const createData = await createRes.json();
+    store.chats.push(normalizeServerChat(createData.chat));
   }
+
   if (store.activeChatId === id) {
     store.activeChatId = store.chats[0].id;
   }
-  saveStore(store);
   renderChatsPanel();
   renderMessages();
 }
@@ -118,12 +262,27 @@ function deleteChat(id) {
 chatsToggle.addEventListener("click", () => {
   chatsPanel.classList.toggle("open");
   profilePanel.classList.remove("open");
+  authPanel.classList.remove("open");
 });
 
-newChatBtn.addEventListener("click", () => {
-  const c = newChat();
-  store.chats.push(c);
-  switchChat(c.id);
+newChatBtn.addEventListener("click", async () => {
+  if (!isLoggedIn()) {
+    alert("В гостевом режиме доступен только один чат. Зарегистрируйся, чтобы создавать новые.");
+    authPanel.classList.add("open");
+    chatsPanel.classList.remove("open");
+    return;
+  }
+  const res = await fetch(`${API_BASE}/chats`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ title: "новый чат", messages_json: [] }),
+  });
+  const data = await res.json();
+  if (data.chat) {
+    const c = normalizeServerChat(data.chat);
+    store.chats.push(c);
+    switchChat(c.id);
+  }
 });
 
 // ===== Профиль: цвет и угловатость облачка пользователя =====
@@ -161,6 +320,7 @@ if (profileToggle) {
   profileToggle.addEventListener("click", () => {
     profilePanel.classList.toggle("open");
     chatsPanel.classList.remove("open");
+    authPanel.classList.remove("open");
   });
 }
 
@@ -190,13 +350,141 @@ if (radiusSlider) {
   });
 }
 
+// ===== Авторизация =====
+
+function renderAuthUI() {
+  if (isLoggedIn()) {
+    authToggle.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "выйти";
+    authToggle.onclick = handleLogout;
+    if (guestBanner) guestBanner.style.display = "none";
+  } else {
+    authToggle.textContent = "войти";
+    authToggle.onclick = () => {
+      authPanel.classList.toggle("open");
+      chatsPanel.classList.remove("open");
+      profilePanel.classList.remove("open");
+    };
+    if (guestBanner) guestBanner.style.display = "flex";
+  }
+}
+
+function handleLogout() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_EMAIL_KEY);
+  location.reload();
+}
+
+async function importGuestChatsIfAny() {
+  try {
+    const guestRaw = localStorage.getItem(STORAGE_KEY);
+    if (!guestRaw) return;
+    const guestStore = JSON.parse(guestRaw);
+    const chatsWithMessages = (guestStore.chats || []).filter((c) => c.messages && c.messages.length > 0);
+    if (chatsWithMessages.length > 0) {
+      await fetch(`${API_BASE}/chats/import`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          chats: chatsWithMessages.map((c) => ({ title: c.title, messages: c.messages })),
+        }),
+      });
+    }
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    // перенос не удался — не блокируем вход, старые данные останутся в localStorage
+  }
+}
+
+function showAuthError(msg) {
+  if (authError) authError.textContent = msg || "";
+}
+
+if (tabLogin && tabRegister) {
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("active");
+    tabRegister.classList.remove("active");
+    loginForm.style.display = "flex";
+    registerForm.style.display = "none";
+    showAuthError("");
+  });
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("active");
+    tabLogin.classList.remove("active");
+    registerForm.style.display = "flex";
+    loginForm.style.display = "none";
+    showAuthError("");
+  });
+}
+
+if (loginForm) {
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        showAuthError(data.error || "Не удалось войти");
+        return;
+      }
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      localStorage.setItem(AUTH_EMAIL_KEY, data.email);
+      await importGuestChatsIfAny();
+      location.reload();
+    } catch (err) {
+      showAuthError("Проблема с соединением, попробуй ещё раз");
+    }
+  });
+}
+
+if (registerForm) {
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const email = document.getElementById("registerEmail").value.trim();
+    const password = document.getElementById("registerPassword").value;
+    try {
+      const res = await fetch(`${API_BASE}/register`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        showAuthError(data.error || "Не удалось зарегистрироваться");
+        return;
+      }
+      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      localStorage.setItem(AUTH_EMAIL_KEY, data.email);
+      await importGuestChatsIfAny();
+      location.reload();
+    } catch (err) {
+      showAuthError("Проблема с соединением, попробуй ещё раз");
+    }
+  });
+}
+
+if (guestBannerBtn) {
+  guestBannerBtn.addEventListener("click", () => {
+    authPanel.classList.add("open");
+    chatsPanel.classList.remove("open");
+    profilePanel.classList.remove("open");
+  });
+}
+
 // ===== Разблокировка ролей (тестировщик / разработчик) =====
 
 async function tryUnlock(text) {
   try {
-    const res = await fetch("/api/unlock", {
+    const res = await fetch(`${API_BASE}/unlock`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ code: text.trim() }),
     });
     const data = await res.json();
@@ -215,7 +503,7 @@ async function tryUnlock(text) {
 function renderRolePanel() {
   const role = localStorage.getItem("yari_role");
   if (!role) return;
-  if (document.getElementById("rolePanel")) return; // не дублировать
+  if (document.getElementById("rolePanel")) return;
 
   const header = document.querySelector(".header-right");
   if (!header) return;
@@ -245,8 +533,8 @@ function renderRolePanel() {
 async function showDevInfo() {
   const token = localStorage.getItem("yari_token");
   try {
-    const res = await fetch("/api/dev/status", {
-      headers: { "x-yari-token": token },
+    const res = await fetch(`${API_BASE}/dev/status`, {
+      headers: authHeaders({ "x-yari-token": token }),
     });
     const data = await res.json();
     if (data.error) {
@@ -262,8 +550,8 @@ async function showDevInfo() {
 async function showFeedbackQueue() {
   const token = localStorage.getItem("yari_token");
   try {
-    const res = await fetch("/api/dev/feedback-queue", {
-      headers: { "x-yari-token": token },
+    const res = await fetch(`${API_BASE}/dev/feedback-queue`, {
+      headers: authHeaders({ "x-yari-token": token }),
     });
     const data = await res.json();
     if (data.error) {
@@ -286,9 +574,9 @@ async function showFeedbackQueue() {
 async function sendFeedback(originalReply, reaction, correction) {
   const token = localStorage.getItem("yari_token");
   try {
-    await fetch("/api/tester/feedback", {
+    await fetch(`${API_BASE}/tester/feedback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-yari-token": token },
+      headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
       body: JSON.stringify({ originalReply, reaction, correction }),
     });
   } catch (err) {
@@ -349,7 +637,7 @@ function addMessageToDOM(role, text, opts = {}) {
 function renderMessages() {
   chat.innerHTML = "";
   const c = getActiveChat();
-  if (c.messages.length === 0) {
+  if (!c || c.messages.length === 0) {
     addMessageToDOM("assistant", "привет. пиши, о чём хотела поговорить — я тут.");
     return;
   }
@@ -381,15 +669,36 @@ function looksLikeProactiveOff(text) {
 async function sendMessage(text) {
   const c = getActiveChat();
 
+  if (!isLoggedIn()) {
+    const usage = getGuestUsage();
+    if (usage.count >= GUEST_DAILY_LIMIT) {
+      addMessageToDOM(
+        "assistant",
+        "на сегодня гостевой лимит сообщений исчерпан (50 в день). зарегистрируйся, чтобы продолжить без ограничений."
+      );
+      return;
+    }
+  }
+
   if (looksLikeProactiveOff(text)) {
     c.proactiveOff = true;
+    if (isLoggedIn()) updateChatMeta(c.id, { proactiveOff: true });
   }
 
   c.messages.push({ role: "user", content: text });
+  let titleChanged = false;
   if (c.messages.length === 1) {
     c.title = text.slice(0, 30);
+    titleChanged = true;
   }
-  saveStore(store);
+
+  if (isLoggedIn()) {
+    await persistChatToServer(c, titleChanged);
+  } else {
+    saveStore(store);
+    incrementGuestUsage();
+  }
+
   addMessageToDOM("user", text);
   renderChatsPanel();
 
@@ -411,9 +720,9 @@ async function sendMessage(text) {
   chat.scrollTop = chat.scrollHeight;
 
   try {
-    const res = await fetch("/api/chat", {
+    const res = await fetch(`${API_BASE}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
         disableFlair: looksLikeFlairOff(text),
@@ -425,7 +734,13 @@ async function sendMessage(text) {
     if (data.reply) {
       c.messages.push({ role: "assistant", content: data.reply });
       c.nextProactiveAt = Date.now() + randomGapMs();
-      saveStore(store);
+
+      if (isLoggedIn()) {
+        updateChatMeta(c.id, { nextProactiveAt: c.nextProactiveAt });
+        await persistChatToServer(c, false);
+      } else {
+        saveStore(store);
+      }
       addMessageToDOM("assistant", data.reply);
     }
   } catch (err) {
@@ -436,14 +751,14 @@ async function sendMessage(text) {
 
 async function checkProactive() {
   const c = getActiveChat();
-  if (c.proactiveOff) return;
+  if (!c || c.proactiveOff) return;
   if (c.messages.length === 0) return;
   if (Date.now() < c.nextProactiveAt) return;
 
   try {
-    const res = await fetch("/api/proactive", {
+    const res = await fetch(`${API_BASE}/proactive`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
       }),
@@ -451,7 +766,8 @@ async function checkProactive() {
     const data = await res.json();
     if (!data.reply) {
       c.nextProactiveAt = Date.now() + randomGapMs();
-      saveStore(store);
+      if (isLoggedIn()) updateChatMeta(c.id, { nextProactiveAt: c.nextProactiveAt });
+      else saveStore(store);
       return;
     }
 
@@ -460,12 +776,14 @@ async function checkProactive() {
     for (let i = 0; i < parts.length; i++) {
       await new Promise((r) => setTimeout(r, i === 0 ? 0 : 1200 + Math.random() * 800));
       c.messages.push({ role: "assistant", content: parts[i], proactive: true });
-      saveStore(store);
+      if (isLoggedIn()) await persistChatToServer(c, false);
+      else saveStore(store);
       addMessageToDOM("assistant", parts[i], { proactive: true });
     }
 
     c.nextProactiveAt = Date.now() + randomGapMs();
-    saveStore(store);
+    if (isLoggedIn()) updateChatMeta(c.id, { nextProactiveAt: c.nextProactiveAt });
+    else saveStore(store);
   } catch (err) {
     // тихо промолчим, попробуем в другой раз
   }
@@ -479,7 +797,7 @@ form.addEventListener("submit", async (e) => {
   input.style.height = "auto";
 
   const unlocked = await tryUnlock(text);
-  if (unlocked) return; // код не должен попадать в обычный чат
+  if (unlocked) return;
 
   sendMessage(text);
 });
@@ -496,10 +814,31 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
-const activeChat = getActiveChat();
-activeChat.lastVisit = Date.now();
-saveStore(store);
-renderChatsPanel();
-renderMessages();
-checkProactive();
-renderRolePanel();
+// ===== Инициализация =====
+
+(async function init() {
+  if (isLoggedIn()) {
+    try {
+      await loadServerChats();
+    } catch (e) {
+      handleLogout();
+      return;
+    }
+  } else {
+    loadGuestChat();
+  }
+
+  renderAuthUI();
+
+  const c = getActiveChat();
+  if (c) {
+    c.lastVisit = Date.now();
+    if (isLoggedIn()) updateChatMeta(c.id, { lastVisit: c.lastVisit });
+    else saveStore(store);
+  }
+
+  renderChatsPanel();
+  renderMessages();
+  checkProactive();
+  renderRolePanel();
+})();
