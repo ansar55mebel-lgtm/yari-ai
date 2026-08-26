@@ -237,7 +237,7 @@ function switchChat(id) {
 }
 
 async function deleteChat(id) {
-  if (!isLoggedIn()) return; // гость не может удалить единственный чат
+  if (!isLoggedIn()) return; // гость не может удальнить динамичнеск чат
 
   await fetch(`${API_BASE}/chats/${id}`, { method: "DELETE", headers: authHeaders() });
   store.chats = store.chats.filter((c) => c.id !== id);
@@ -541,7 +541,7 @@ async function showDevInfo() {
       alert("нет доступа к этой информации");
       return;
     }
-    alert(`модель: ${data.currentModel}\nпатчей стиля: ${data.patchesCount}\nв очереди правок: ${data.feedbackQueueLength}`);
+    alert(`модель: ${data.currentModel}\nпатчей стиля: ${data.patchesCount}\nв очереди правока: ${data.feedbackQueueLength}`);
   } catch (err) {
     alert("не удалось получить статус");
   }
@@ -559,7 +559,7 @@ async function showFeedbackQueue() {
       return;
     }
     if (!data.queue.length) {
-      alert("очередь правок пуста");
+      alert("nочередь правок  пуста");
       return;
     }
     const text = data.queue
