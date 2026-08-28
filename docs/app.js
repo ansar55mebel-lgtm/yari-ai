@@ -18,6 +18,9 @@ const registerForm = document.getElementById("registerForm");
 const authError = document.getElementById("authError");
 const guestBanner = document.getElementById("guestBanner");
 const guestBannerBtn = document.getElementById("guestBannerBtn");
+const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+const forgotForm = document.getElementById("forgotForm");
+const resetForm = document.getElementById("resetForm");
 
 // ===== Supabase / Edge Function =====
 const SUPABASE_URL = "https://prvwpqesbbmtzezxqcsl.supabase.co";
@@ -405,6 +408,7 @@ if (tabLogin && tabRegister) {
     tabRegister.classList.remove("active");
     loginForm.style.display = "flex";
     registerForm.style.display = "none";
+    if (forgotForm) forgotForm.style.display = "none";
     showAuthError("");
   });
   tabRegister.addEventListener("click", () => {
@@ -412,6 +416,7 @@ if (tabLogin && tabRegister) {
     tabLogin.classList.remove("active");
     registerForm.style.display = "flex";
     loginForm.style.display = "none";
+    if (forgotForm) forgotForm.style.display = "none";
     showAuthError("");
   });
 }
@@ -475,6 +480,90 @@ if (guestBannerBtn) {
     authPanel.classList.add("open");
     chatsPanel.classList.remove("open");
     profilePanel.classList.remove("open");
+  });
+}
+
+// ===== Забыл пароль / сброс пароля =====
+
+if (forgotPasswordLink) {
+  forgotPasswordLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    loginForm.style.display = "none";
+    registerForm.style.display = "none";
+    if (forgotForm) forgotForm.style.display = "flex";
+    showAuthError("");
+  });
+}
+
+if (forgotForm) {
+  forgotForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const email = document.getElementById("forgotEmail").value.trim();
+    try {
+      await fetch(`${API_BASE}/forgot-password`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email }),
+      });
+      showAuthError("Если такой email зарегистрирован — письмо со ссылкой отправлено. Проверь почту (и папку спам).");
+    } catch (err) {
+      showAuthError("Проблема с соединением, попробуй ещё раз");
+    }
+  });
+}
+
+// После перехода по ссылке из письма Supabase добавляет в адрес
+// #access_token=...&type=recovery&... — ловим это при загрузке страницы.
+function checkRecoveryHash() {
+  if (location.hash.includes("type=recovery")) {
+    const params = new URLSearchParams(location.hash.slice(1));
+    const token = params.get("access_token");
+    if (token) {
+      window.__recoveryToken = token;
+      authPanel.classList.add("open");
+      chatsPanel.classList.remove("open");
+      profilePanel.classList.remove("open");
+      loginForm.style.display = "none";
+      registerForm.style.display = "none";
+      if (forgotForm) forgotForm.style.display = "none";
+      if (resetForm) resetForm.style.display = "flex";
+    }
+  }
+}
+
+if (resetForm) {
+  resetForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const password = document.getElementById("resetPassword").value;
+    const token = window.__recoveryToken;
+    if (!token) {
+      showAuthError("Ссылка недействительна, запроси сброс заново.");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/reset-password`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ access_token: token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        showAuthError(data.error || "Не удалось обновить пароль");
+        return;
+      }
+      history.replaceState(null, "", location.pathname);
+      alert("Пароль обновлён. Теперь войди с новым паролем.");
+      resetForm.style.display = "none";
+      loginForm.style.display = "flex";
+      if (tabLogin && tabRegister) {
+        tabLogin.classList.add("active");
+        tabRegister.classList.remove("active");
+      }
+    } catch (err) {
+      showAuthError("Проблема с соединением, попробуй ещё раз");
+    }
   });
 }
 
@@ -559,7 +648,7 @@ async function showFeedbackQueue() {
       return;
     }
     if (!data.queue.length) {
-      alert("nочередь правок  пуста");
+      alert("очередь правок пуста");
       return;
     }
     const text = data.queue
@@ -817,6 +906,8 @@ input.addEventListener("keydown", (e) => {
 // ===== Инициализация =====
 
 (async function init() {
+  checkRecoveryHash();
+
   if (isLoggedIn()) {
     try {
       await loadServerChats();
