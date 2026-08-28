@@ -70,10 +70,19 @@
         <input type="password" id="loginPassword" placeholder="пароль" required autocomplete="current-password" />
         <button type="submit">войти</button>
       </form>
+      <a href="#" class="auth-forgot-link" id="forgotPasswordLink">забыли пароль?</a>
       <form class="auth-form" id="registerForm" style="display:none">
         <input type="email" id="registerEmail" placeholder="email" required autocomplete="email" />
         <input type="password" id="registerPassword" placeholder="пароль (от 6 символов)" required autocomplete="new-password" />
         <button type="submit">зарегистрироваться</button>
+      </form>
+      <form class="auth-form" id="forgotForm" style="display:none">
+        <input type="email" id="forgotEmail" placeholder="email" required autocomplete="email" />
+        <button type="submit">отправить ссылку для сброса</button>
+      </form>
+      <form class="auth-form" id="resetForm" style="display:none">
+        <input type="password" id="resetPassword" placeholder="новый пароль (от 6 символов)" required autocomplete="new-password" />
+        <button type="submit">сохранить новый пароль</button>
       </form>
       <div class="auth-error" id="authError"></div>
     </div>
