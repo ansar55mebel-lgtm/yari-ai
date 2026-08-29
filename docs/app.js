@@ -755,115 +755,86 @@ function looksLikeProactiveOff(text) {
   );
 }
 
-// ===== ВРЕМЕННЫЙ DEBUG: весь sendMessage обёрнут в try/catch с alert =====
-// После того как найдём причину бага в старых чатах — этот блок убрать,
-// вернув обычный async function sendMessage(text) { ... } без внешнего try/catch.
 async function sendMessage(text) {
-  try {
-    const c = getActiveChat();
+  const c = getActiveChat();
 
-    if (!c) {
-      alert("DEBUG: активный чат не найден (getActiveChat() вернул undefined/null). store.activeChatId = " + store.activeChatId);
+  if (!isLoggedIn()) {
+    const usage = getGuestUsage();
+    if (usage.count >= GUEST_DAILY_LIMIT) {
+      addMessageToDOM(
+        "assistant",
+        "на сегодня гостевой лимит сообщений исчерпан (50 в день). зарегистрируйся, чтобы продолжить без ограничений."
+      );
       return;
     }
+  }
 
-    if (!isLoggedIn()) {
-      const usage = getGuestUsage();
-      if (usage.count >= GUEST_DAILY_LIMIT) {
-        addMessageToDOM(
-          "assistant",
-          "на сегодня гостевой лимит сообщений исчерпан (50 в день). зарегистрируйся, чтобы продолжить без ограничений."
-        );
-        return;
-      }
-    }
+  if (looksLikeProactiveOff(text)) {
+    c.proactiveOff = true;
+    if (isLoggedIn()) updateChatMeta(c.id, { proactiveOff: true });
+  }
 
-    if (looksLikeProactiveOff(text)) {
-      c.proactiveOff = true;
-      if (isLoggedIn()) updateChatMeta(c.id, { proactiveOff: true });
-    }
+  c.messages.push({ role: "user", content: text });
+  let titleChanged = false;
+  if (c.messages.length === 1) {
+    c.title = text.slice(0, 30);
+    titleChanged = true;
+  }
 
-    c.messages.push({ role: "user", content: text });
-    let titleChanged = false;
-    if (c.messages.length === 1) {
-      c.title = text.slice(0, 30);
-      titleChanged = true;
-    }
+  if (isLoggedIn()) {
+    await persistChatToServer(c, titleChanged);
+  } else {
+    saveStore(store);
+    incrementGuestUsage();
+  }
 
-    if (isLoggedIn()) {
-      await persistChatToServer(c, titleChanged);
-    } else {
-      saveStore(store);
-      incrementGuestUsage();
-    }
+  addMessageToDOM("user", text);
+  renderChatsPanel();
 
-    addMessageToDOM("user", text);
-    renderChatsPanel();
+  const typingEl = document.createElement("div");
+  typingEl.className = "msg msg-bot";
 
-    const typingEl = document.createElement("div");
-    typingEl.className = "msg msg-bot";
+  const typingLabel = document.createElement("div");
+  typingLabel.className = "msg-label";
+  typingLabel.textContent = "Yari";
 
-    const typingLabel = document.createElement("div");
-    typingLabel.className = "msg-label";
-    typingLabel.textContent = "Yari";
+  const typingBubble = document.createElement("div");
+  typingBubble.className = "msg-bubble typing-indicator";
+  typingBubble.innerHTML =
+    '<span class="typing-text">печатает</span><span class="typing-dots"><span></span><span></span><span></span></span>';
 
-    const typingBubble = document.createElement("div");
-    typingBubble.className = "msg-bubble typing-indicator";
-    typingBubble.innerHTML =
-      '<span class="typing-text">печатает</span><span class="typing-dots"><span></span><span></span><span></span></span>';
+  typingEl.appendChild(typingLabel);
+  typingEl.appendChild(typingBubble);
+  chat.appendChild(typingEl);
+  chat.scrollTop = chat.scrollHeight;
 
-    typingEl.appendChild(typingLabel);
-    typingEl.appendChild(typingBubble);
-    chat.appendChild(typingEl);
-    chat.scrollTop = chat.scrollHeight;
+  try {
+    const res = await fetch(`${API_BASE}/chat`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
+        disableFlair: looksLikeFlairOff(text),
+      }),
+    });
+    const data = await res.json();
+    typingEl.remove();
 
-    try {
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
-          disableFlair: looksLikeFlairOff(text),
-        }),
-      });
+    if (data.reply) {
+      c.messages.push({ role: "assistant", content: data.reply });
+      c.nextProactiveAt = Date.now() + randomGapMs();
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (parseErr) {
-        typingEl.remove();
-        alert("DEBUG: не смогла распарсить JSON ответа. status=" + res.status + " parseErr=" + parseErr.message);
-        return;
-      }
-
-      typingEl.remove();
-
-      if (!res.ok) {
-        alert("DEBUG: сервер вернул ошибку. status=" + res.status + " body=" + JSON.stringify(data));
-        return;
-      }
-
-      if (data.reply) {
-        c.messages.push({ role: "assistant", content: data.reply });
-        c.nextProactiveAt = Date.now() + randomGapMs();
-
-        if (isLoggedIn()) {
-          updateChatMeta(c.id, { nextProactiveAt: c.nextProactiveAt });
-          await persistChatToServer(c, false);
-        } else {
-          saveStore(store);
-        }
-        addMessageToDOM("assistant", data.reply);
+      if (isLoggedIn()) {
+        updateChatMeta(c.id, { nextProactiveAt: c.nextProactiveAt });
+        await persistChatToServer(c, false);
       } else {
-        alert("DEBUG: сервер ответил 200, но без поля reply. body=" + JSON.stringify(data));
+        saveStore(store);
       }
-    } catch (err) {
-      typingEl.remove();
-      alert("DEBUG: fetch к /chat упал с ошибкой ДО получения ответа: " + err.message + "\n\n" + err.stack);
-      addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
+      addMessageToDOM("assistant", data.reply);
     }
-  } catch (outerErr) {
-    alert("DEBUG: ошибка ДО отправки запроса (в самом начале sendMessage): " + outerErr.message + "\n\n" + outerErr.stack);
+  } catch (err) {
+    typingEl.remove();
+    addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
   }
 }
 
