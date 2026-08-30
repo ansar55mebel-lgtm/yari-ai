@@ -3,6 +3,7 @@ const form = document.getElementById("composer");
 const input = document.getElementById("input");
 const chatsToggle = document.getElementById("chatsToggle");
 const chatsPanel = document.getElementById("chatsPanel");
+const chatsListEl = document.getElementById("chatsList");
 const newChatBtn = document.getElementById("newChatBtn");
 const profileToggle = document.getElementById("profileToggle");
 const profilePanel = document.getElementById("profilePanel");
@@ -21,6 +22,13 @@ const guestBannerBtn = document.getElementById("guestBannerBtn");
 const forgotPasswordLink = document.getElementById("forgotPasswordLink");
 const forgotForm = document.getElementById("forgotForm");
 const resetForm = document.getElementById("resetForm");
+const statusEl = document.getElementById("status");
+
+// ===== Статус в шапке: "на связи" / "печатает" =====
+
+function setStatus(text) {
+  if (statusEl) statusEl.textContent = text;
+}
 
 // ===== Supabase / Edge Function =====
 const SUPABASE_URL = "https://prvwpqesbbmtzezxqcsl.supabase.co";
@@ -194,7 +202,12 @@ function getActiveChat() {
 }
 
 function renderChatsPanel() {
-  chatsPanel.innerHTML = "";
+  // Рендерим список в #chatsList, а не в сам #chatsPanel — так статичный
+  // заголовок "чаты" (лежит в index.html рядом с #chatsList) не затирается
+  // при каждой перерисовке. Если по какой-то причине #chatsList не найден
+  // в разметке — откатываемся на chatsPanel, чтобы список не пропал.
+  const target = chatsListEl || chatsPanel;
+  target.innerHTML = "";
   store.chats
     .slice()
     .sort((a, b) => b.lastVisit - a.lastVisit)
@@ -221,7 +234,7 @@ function renderChatsPanel() {
         item.appendChild(del);
       }
 
-      chatsPanel.appendChild(item);
+      target.appendChild(item);
     });
 }
 
@@ -808,6 +821,8 @@ async function sendMessage(text) {
   chat.appendChild(typingEl);
   chat.scrollTop = chat.scrollHeight;
 
+  setStatus("печатает");
+
   try {
     const res = await fetch(`${API_BASE}/chat`, {
       method: "POST",
@@ -844,6 +859,8 @@ async function sendMessage(text) {
   } catch (err) {
     typingEl.remove();
     addMessageToDOM("assistant", `у меня тут что-то с соединением: ${err && err.message ? err.message : err}. попробуй ещё раз.`);
+  } finally {
+    setStatus("на связи");
   }
 }
 
@@ -852,6 +869,8 @@ async function checkProactive() {
   if (!c || c.proactiveOff) return;
   if (c.messages.length === 0) return;
   if (Date.now() < c.nextProactiveAt) return;
+
+  setStatus("печатает");
 
   try {
     const res = await fetch(`${API_BASE}/proactive`, {
@@ -884,6 +903,8 @@ async function checkProactive() {
     else saveStore(store);
   } catch (err) {
     // тихо промолчим, попробуем в другой раз
+  } finally {
+    setStatus("на связи");
   }
 }
 
