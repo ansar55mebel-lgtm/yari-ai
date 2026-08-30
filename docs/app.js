@@ -912,6 +912,64 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
+// ===== Приветствие / выбор языка для новых гостей =====
+
+const LANG_CHOSEN_KEY = "yari_lang_chosen";
+
+function showLanguageWelcomeIfNeeded() {
+  if (isLoggedIn()) return;
+  if (localStorage.getItem(LANG_CHOSEN_KEY)) return;
+  const c = getActiveChat();
+  if (c && c.messages.length > 0) return; // уже не новый юзер
+
+  const overlay = document.createElement("div");
+  overlay.id = "langWelcomeOverlay";
+  overlay.style.cssText =
+    "position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;";
+
+  const card = document.createElement("div");
+  card.style.cssText =
+    "background:#1c1a17;border-radius:16px;padding:32px 24px;max-width:360px;width:100%;text-align:center;color:#e8dfd2;font-family:inherit;";
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-size:22px;margin-bottom:8px;";
+  title.textContent = "Yari";
+
+  const text = document.createElement("div");
+  text.style.cssText = "font-size:15px;line-height:1.5;margin-bottom:24px;opacity:0.85;";
+  text.innerHTML = "Welcome! Choose your language.<br>Добро пожаловать! Выберите язык.";
+
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:flex;gap:12px;justify-content:center;";
+
+  function chooseLang(lang) {
+    localStorage.setItem(LANG_CHOSEN_KEY, "1");
+    localStorage.setItem("yari_lang", lang);
+    overlay.remove();
+    if (lang === "en" && input) input.placeholder = "type something...";
+  }
+
+  const ruBtn = document.createElement("button");
+  ruBtn.textContent = "Русский";
+  ruBtn.style.cssText =
+    "flex:1;padding:12px;border-radius:10px;border:none;background:#d7a24a;color:#141110;font-weight:600;cursor:pointer;";
+  ruBtn.addEventListener("click", () => chooseLang("ru"));
+
+  const enBtn = document.createElement("button");
+  enBtn.textContent = "English";
+  enBtn.style.cssText =
+    "flex:1;padding:12px;border-radius:10px;border:1px solid #d7a24a;background:transparent;color:#e8dfd2;font-weight:600;cursor:pointer;";
+  enBtn.addEventListener("click", () => chooseLang("en"));
+
+  btnRow.appendChild(ruBtn);
+  btnRow.appendChild(enBtn);
+  card.appendChild(title);
+  card.appendChild(text);
+  card.appendChild(btnRow);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
 // ===== Инициализация =====
 
 (async function init() {
@@ -941,4 +999,9 @@ input.addEventListener("keydown", (e) => {
   renderMessages();
   checkProactive();
   renderRolePanel();
+
+  if (!isLoggedIn() && localStorage.getItem("yari_lang") === "en" && input) {
+    input.placeholder = "type something...";
+  }
+  showLanguageWelcomeIfNeeded();
 })();
