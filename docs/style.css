@@ -284,7 +284,7 @@ html, body {
 
 /* Планшет / средний десктоп: панели становятся боковыми сайдбарами
    внутри .app (места по бокам ещё не хватает, поэтому чуть заходят
-   на край чата — это компромисс для средних ширин) */
+   на край чата — компромисс для средних ширин) */
 @media (min-width: 800px) and (max-width: 1039px) {
   .chats-panel, .profile-panel {
     top: 0;
@@ -307,24 +307,27 @@ html, body {
 /* Широкий экран: по бокам от .app (max-width:640px) уже достаточно
    пустого места, чтобы панели открывались прямо в этот пустой гаттер
    через position: fixed относительно окна, а не внутри .app —
-   чат-колонку они больше не трогают вообще. */
+   чат-колонку они больше не трогают вообще. Плашка выровнена по высоте
+   с хедером сверху и с панелью ввода снизу, внутренние углы скруглены. */
 @media (min-width: 1040px) {
   .chats-panel, .profile-panel {
     position: fixed;
-    top: 0;
-    bottom: 0;
+    top: 96px;
+    bottom: 84px;
     width: clamp(220px, calc((100vw - 680px) / 2), 320px);
-    padding-top: 96px;
+    padding-top: 12px;
   }
   .chats-panel {
     left: 0;
     right: auto;
     border-right: 1px solid var(--panther-line);
+    border-radius: 0 16px 16px 0;
   }
   .profile-panel {
     left: auto;
     right: 0;
     border-left: 1px solid var(--panther-line);
+    border-radius: 16px 0 0 16px;
   }
 }
 
