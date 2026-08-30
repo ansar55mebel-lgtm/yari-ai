@@ -818,41 +818,17 @@ async function sendMessage(text) {
       }),
     });
 
-    if (!res.ok || !res.body) {
+    if (!res.ok) {
       typingEl.remove();
       addMessageToDOM("assistant", `у меня тут что-то с соединением (код ${res.status}). попробуй ещё раз.`);
       return;
     }
 
-    // Переключаем индикатор "печатает" в живой текст, который будем дополнять по мере стрима
-    typingBubble.classList.remove("typing-indicator");
-    typingBubble.innerHTML = "";
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let fullReply = "";
-    let streamBroke = false;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        if (chunk) {
-          fullReply += chunk;
-          typingBubble.textContent = fullReply;
-          chat.scrollTop = chat.scrollHeight;
-        }
-      }
-    } catch (streamErr) {
-      // соединение оборвалось на середине ответа — не теряем то, что уже пришло
-      streamBroke = true;
-    }
-
+    const data = await res.json();
     typingEl.remove();
 
-    if (fullReply.trim()) {
-      c.messages.push({ role: "assistant", content: fullReply });
+    if (data.reply) {
+      c.messages.push({ role: "assistant", content: data.reply });
       c.nextProactiveAt = Date.now() + randomGapMs();
 
       if (isLoggedIn()) {
@@ -861,9 +837,9 @@ async function sendMessage(text) {
       } else {
         saveStore(store);
       }
-      addMessageToDOM("assistant", fullReply + (streamBroke ? "\n\n(ответ оборвался, соединение прервалось)" : ""));
+      addMessageToDOM("assistant", data.reply);
     } else {
-      addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
+      addMessageToDOM("assistant", "…что-то пошло не так, я задумалась.");
     }
   } catch (err) {
     typingEl.remove();
