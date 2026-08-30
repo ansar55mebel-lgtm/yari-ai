@@ -817,11 +817,36 @@ async function sendMessage(text) {
         disableFlair: looksLikeFlairOff(text),
       }),
     });
-    const data = await res.json();
+
+    if (!res.ok || !res.body) {
+      typingEl.remove();
+      addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
+      return;
+    }
+
+    // Переключаем индикатор "печатает" в живой текст, который будем дополнять по мере стрима
+    typingBubble.classList.remove("typing-indicator");
+    typingBubble.innerHTML = "";
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullReply = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      if (chunk) {
+        fullReply += chunk;
+        typingBubble.textContent = fullReply;
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
+
     typingEl.remove();
 
-    if (data.reply) {
-      c.messages.push({ role: "assistant", content: data.reply });
+    if (fullReply.trim()) {
+      c.messages.push({ role: "assistant", content: fullReply });
       c.nextProactiveAt = Date.now() + randomGapMs();
 
       if (isLoggedIn()) {
@@ -830,7 +855,9 @@ async function sendMessage(text) {
       } else {
         saveStore(store);
       }
-      addMessageToDOM("assistant", data.reply);
+      addMessageToDOM("assistant", fullReply);
+    } else {
+      addMessageToDOM("assistant", "…что-то пошло не так, я задумалась.");
     }
   } catch (err) {
     typingEl.remove();
