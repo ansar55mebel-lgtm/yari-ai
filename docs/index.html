@@ -15,10 +15,14 @@
         <button class="chats-toggle" id="chatsToggle">чаты ▾</button>
         <div class="header-name-group">
           <img class="brand-logo" src="yari-logo-white.svg" alt="Yari" style="height:80px; width:auto; display:block;" />
+          <div class="header-name-stack">
+            <span class="header-name-text">Yari</span>
+            <span class="header-status" id="status">на связи</span>
+          </div>
         </div>
       </div>
       <div class="header-right">
-        <button class="new-chat-btn" id="newChatBtn">+ новый</button>
+        <button class="new-chat-btn" id="newChatBtn" title="новый чат" aria-label="новый чат">+</button>
         <button class="icon-btn" id="profileToggle" aria-label="профиль" title="профиль">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="8" r="4"></circle>
@@ -26,7 +30,6 @@
           </svg>
         </button>
         <button class="chats-toggle" id="authToggle">войти</button>
-        <div class="header-status" id="status">на связи</div>
       </div>
     </header>
 
