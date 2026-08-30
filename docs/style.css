@@ -57,6 +57,21 @@ html, body {
   gap: 8px;
 }
 
+.header-name-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.header-name-text {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--text);
+}
+
 .brand-mark {
   filter: drop-shadow(0 0 4px rgba(215, 162, 74, 0.55));
   flex-shrink: 0;
@@ -212,6 +227,13 @@ html, body {
   text-transform: lowercase;
 }
 
+.new-chat-btn {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 4px 12px;
+  line-height: 1;
+}
+
 .chats-toggle:hover, .new-chat-btn:hover {
   border-color: var(--amber-glint);
   color: var(--amber-glint);
@@ -304,30 +326,33 @@ html, body {
   }
 }
 
-/* Широкий экран: по бокам от .app (max-width:640px) уже достаточно
-   пустого места, чтобы панели открывались прямо в этот пустой гаттер
-   через position: fixed относительно окна, а не внутри .app —
-   чат-колонку они больше не трогают вообще. Плашка выровнена по высоте
-   с хедером сверху и с панелью ввода снизу, внутренние углы скруглены. */
+/* Широкий экран: по бокам от .app уже достаточно пустого места, чтобы
+   панели открывались прямо в этот пустой гаттер через position: fixed
+   относительно окна, на всю высоту экрана, с крупным скруглением
+   внутренних углов. .app немного сжимается, чтобы панели при открытии
+   занимали чуть больше места и примыкали встык. */
 @media (min-width: 1040px) {
+  .app {
+    max-width: 600px;
+  }
   .chats-panel, .profile-panel {
     position: fixed;
-    top: 96px;
-    bottom: 84px;
-    width: clamp(220px, calc((100vw - 680px) / 2), 320px);
-    padding-top: 12px;
+    top: 0;
+    bottom: 0;
+    width: clamp(240px, calc((100vw - 640px) / 2), 360px);
+    padding-top: 20px;
   }
   .chats-panel {
     left: 0;
     right: auto;
     border-right: 1px solid var(--panther-line);
-    border-radius: 0 16px 16px 0;
+    border-radius: 0 28px 28px 0;
   }
   .profile-panel {
     left: auto;
     right: 0;
     border-left: 1px solid var(--panther-line);
-    border-radius: 16px 0 0 16px;
+    border-radius: 28px 0 0 28px;
   }
 }
 
