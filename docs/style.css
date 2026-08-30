@@ -32,6 +32,7 @@ html, body {
   margin: 0 auto;
   isolation: isolate;
   background: var(--panther);
+  overflow-x: hidden;
 }
 
 .header {
@@ -242,14 +243,19 @@ html, body {
   height: 18px;
 }
 
-/* --- Панели чатов / профиля: выезжающие оверлеи --- */
+/* --- Панели чатов / профиля: выезжающие оверлеи ---
+   position: absolute (не fixed!), чтобы позиционироваться относительно
+   .app (max-width: 640px, position: relative), а не относительно всего
+   экрана — иначе на широких экранах панель растягивается на весь viewport
+   и наезжает на контент чата. z-index выше хедера (200), чтобы при
+   открытии панель полностью перекрывала хедер, а не пряталась под ним. */
 .chats-panel, .profile-panel {
-  position: fixed;
+  position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 250;
   background: var(--panther-soft);
   display: flex;
   flex-direction: column;
