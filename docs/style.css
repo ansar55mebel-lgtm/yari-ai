@@ -51,7 +51,7 @@ html, body {
 }
 
 .header {
-  padding: 20px 20px 14px;
+  padding: 6px 20px 14px;
   border-bottom: 1px solid var(--panther-line);
   display: flex;
   align-items: baseline;
