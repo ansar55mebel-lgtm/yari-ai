@@ -831,16 +831,22 @@ async function sendMessage(text) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let fullReply = "";
+    let streamBroke = false;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      if (chunk) {
-        fullReply += chunk;
-        typingBubble.textContent = fullReply;
-        chat.scrollTop = chat.scrollHeight;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (chunk) {
+          fullReply += chunk;
+          typingBubble.textContent = fullReply;
+          chat.scrollTop = chat.scrollHeight;
+        }
       }
+    } catch (streamErr) {
+      // соединение оборвалось на середине ответа — не теряем то, что уже пришло
+      streamBroke = true;
     }
 
     typingEl.remove();
@@ -855,9 +861,9 @@ async function sendMessage(text) {
       } else {
         saveStore(store);
       }
-      addMessageToDOM("assistant", fullReply);
+      addMessageToDOM("assistant", fullReply + (streamBroke ? "\n\n(ответ оборвался, соединение прервалось)" : ""));
     } else {
-      addMessageToDOM("assistant", "…что-то пошло не так, я задумалась.");
+      addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
     }
   } catch (err) {
     typingEl.remove();
