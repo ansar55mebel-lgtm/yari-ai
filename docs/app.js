@@ -820,7 +820,7 @@ async function sendMessage(text) {
 
     if (!res.ok || !res.body) {
       typingEl.remove();
-      addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
+      addMessageToDOM("assistant", `у меня тут что-то с соединением (код ${res.status}). попробуй ещё раз.`);
       return;
     }
 
@@ -861,7 +861,7 @@ async function sendMessage(text) {
     }
   } catch (err) {
     typingEl.remove();
-    addMessageToDOM("assistant", "у меня тут что-то с соединением. попробуй ещё раз.");
+    addMessageToDOM("assistant", `у меня тут что-то с соединением: ${err && err.message ? err.message : err}. попробуй ещё раз.`);
   }
 }
 
