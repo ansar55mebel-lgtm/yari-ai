@@ -6,6 +6,7 @@
   --peach: #f3a6bd;
   --lavender: #b9a6e8;
   --cyber-blue: #4fc3f7;
+  --danger: #e05a6b;
   --text: #f4eef2;
   --text-dim: #9a8b98;
 
@@ -30,26 +31,30 @@ html, body {
   font-family: 'Inter', sans-serif;
 }
 
-.app {
-  position: relative;
-  height: 100vh;
-  height: 100dvh;
+body {
   display: flex;
   flex-direction: column;
-  max-width: 640px;
-  margin: 0 auto;
-  isolation: isolate;
-  background: transparent;
-  overflow-x: hidden;
 }
 
+/* Шапка — теперь отдельный элемент вне .app, растянута на всю ширину
+   экрана (важно на широких/горизонтальных экранах, где .app сжат в
+   центр и раньше шапка выглядела узкой полосой посередине). Содержимое
+   шапки (.header-inner) выровнено по той же ширине, что и колонка чата
+   (.app), чтобы лого/кнопки визуально совпадали с чатом под шапкой. */
 .header {
+  width: 100%;
+  flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 200;
   background: var(--panther-elevated);
-  padding: 6px 20px 14px;
   border-bottom: 1px solid var(--panther-line);
+}
+
+.header-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 6px 20px 14px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -107,6 +112,25 @@ html, body {
 .header-status .typing-dots span {
   width: 4px;
   height: 4px;
+}
+
+/* .app — колонка чата. Больше не содержит шапку (та вынесена наружу),
+   поэтому вместо фиксированной 100vh занимает оставшееся место через
+   flex:1 внутри body (который теперь тоже flex-column). isolation:isolate
+   убран специально: панели чатов/профиля (z-index 250) должны визуально
+   перекрывать шапку (z-index 200) при открытии — а с изоляцией их
+   z-index не мог "выйти" за пределы .app и сравниться с шапкой снаружи. */
+.app {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  background: transparent;
+  overflow-x: hidden;
 }
 
 .chat {
@@ -286,7 +310,10 @@ html, body {
    .app (max-width: 640px, position: relative), а не относительно всего
    экрана — иначе на широких экранах панель растягивается на весь viewport
    и наезжает на контент чата. z-index выше хедера (200), чтобы при
-   открытии панель полностью перекрывала хедер, а не пряталась под ним. */
+   открытии панель полностью перекрывала хедер, а не пряталась под ним.
+   padding-top уменьшен до 20px: раньше шапка была частью .app и панель
+   должна была "перепрыгивать" через её высоту (~76px), теперь шапка
+   вынесена наружу и .app начинается сразу под ней. */
 .chats-panel, .profile-panel {
   position: absolute;
   top: 0;
@@ -300,7 +327,7 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding-top: 76px;
+  padding-top: 20px;
   transition: transform 0.25s ease;
   visibility: hidden;
 }
@@ -363,8 +390,12 @@ html, body {
    панели открывались прямо в этот пустой гаттер через position: fixed
    относительно окна, на всю высоту экрана, с крупным скруглением
    внутренних углов. .app немного сжимается, чтобы панели при открытии
-   занимали чуть больше места и примыкали встык. */
+   занимали чуть больше места и примыкали встык. .header-inner сжимается
+   до той же ширины, чтобы шапка совпадала по краям с колонкой чата. */
 @media (min-width: 1040px) {
+  .header-inner {
+    max-width: 600px;
+  }
   .app {
     max-width: 600px;
   }
@@ -418,12 +449,130 @@ html, body {
 /* --- Профиль: аватар + почта (messenger-style), пока без загрузки фото --- */
 .profile-identity {
   display: none; /* показывается через JS только для залогиненных */
+  position: relative;
   flex-direction: column;
   align-items: center;
   gap: 10px;
   padding-bottom: 20px;
   margin-bottom: 4px;
   border-bottom: 1px solid var(--panther-line);
+}
+
+/* Карандашик: редактирование аккаунта (email / удаление), в правом
+   верхнем углу блока профиля, над аватаркой */
+.profile-edit-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--panther-line);
+  background: transparent;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.profile-edit-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.profile-edit-btn:hover {
+  border-color: var(--lavender);
+  color: var(--lavender);
+}
+
+.profile-edit-menu {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--panther-line);
+}
+
+.profile-edit-menu.open {
+  display: flex;
+}
+
+.profile-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-edit-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-edit-inline input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panther);
+  border: 1px solid var(--panther-line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.profile-edit-inline input:focus {
+  outline: none;
+  border-color: var(--lavender);
+}
+
+.profile-edit-inline button {
+  background: linear-gradient(135deg, var(--peach), var(--lavender));
+  color: var(--panther);
+  border: none;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.profile-edit-msg {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  min-height: 14px;
+}
+
+/* Опасные действия (удаление аккаунта, выход) — красный текст */
+.profile-danger-btn {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-transform: lowercase;
+  text-align: center;
+}
+
+.profile-danger-btn:hover {
+  background: rgba(224, 90, 107, 0.12);
+}
+
+/* Кнопка выхода — самый низ панели профиля */
+.profile-logout-btn {
+  margin-top: auto;
 }
 
 .profile-avatar {
