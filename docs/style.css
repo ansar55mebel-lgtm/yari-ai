@@ -87,10 +87,18 @@ html, body {
 }
 
 .header-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   color: var(--amber-glint);
   text-transform: lowercase;
+}
+
+.header-status .typing-dots span {
+  width: 4px;
+  height: 4px;
 }
 
 .chat {
@@ -287,6 +295,21 @@ html, body {
   visibility: hidden;
 }
 
+.panel-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  padding: 0 20px 12px;
+  flex-shrink: 0;
+}
+
+.chats-list {
+  display: flex;
+  flex-direction: column;
+}
+
 .chats-panel {
   transform: translateX(-100%);
 }
@@ -380,6 +403,43 @@ html, body {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   padding: 2px 8px;
+}
+
+/* --- Профиль: аватар + почта (messenger-style), пока без загрузки фото --- */
+.profile-identity {
+  display: none; /* показывается через JS только для залогиненных */
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 20px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--panther-line);
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--panther);
+  border: 1px solid var(--panther-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.profile-avatar svg {
+  width: 30px;
+  height: 30px;
+}
+
+.profile-email {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  word-break: break-all;
 }
 
 .profile-section-label {
