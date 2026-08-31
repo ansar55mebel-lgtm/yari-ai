@@ -17,7 +17,10 @@
           <img class="brand-logo" src="yari-logo-white.svg" alt="Yari" style="height:80px; width:auto; display:block;" />
           <div class="header-name-stack">
             <span class="header-name-text">Yari</span>
-            <span class="header-status" id="status">на связи</span>
+            <span class="header-status" id="status">
+              <span id="statusText">на связи</span>
+              <span class="typing-dots" id="statusDots" style="display:none;"><span></span><span></span><span></span></span>
+            </span>
           </div>
         </div>
       </div>
@@ -38,9 +41,21 @@
       <button id="guestBannerBtn">войти / зарегистрироваться</button>
     </div>
 
-    <div class="chats-panel" id="chatsPanel"></div>
+    <div class="chats-panel" id="chatsPanel">
+      <div class="panel-title">чаты</div>
+      <div class="chats-list" id="chatsList"></div>
+    </div>
 
     <div class="profile-panel" id="profilePanel">
+      <div class="profile-identity" id="profileIdentity">
+        <div class="profile-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"></circle>
+            <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"></path>
+          </svg>
+        </div>
+        <div class="profile-email" id="profileEmail"></div>
+      </div>
       <div>
         <div class="profile-section-label">цвет твоего облачка</div>
         <div class="swatches" id="swatches">
