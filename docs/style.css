@@ -19,7 +19,13 @@
 html, body {
   height: 100%;
   margin: 0;
-  background: var(--panther);
+  background: radial-gradient(
+    ellipse 160% 70% at 50% 100%,
+    rgba(243, 166, 189, 0.34) 0%,
+    rgba(185, 166, 232, 0.18) 35%,
+    rgba(185, 166, 232, 0.06) 60%,
+    transparent 82%
+  ), var(--panther);
   color: var(--text);
   font-family: 'Inter', sans-serif;
 }
@@ -33,30 +39,8 @@ html, body {
   max-width: 640px;
   margin: 0 auto;
   isolation: isolate;
-  background: var(--panther);
+  background: transparent;
   overflow-x: hidden;
-}
-
-/* Розовая подсветка — теперь на весь экран (не только нижняя часть), но
-   по-прежнему ярче всего у низа и мягко гаснет к верху. Отрицательный
-   z-index держит её позади хедера/чата/композера (у них свой фон там, где
-   он есть), но видна сквозь прозрачные зоны .chat и .composer. */
-.app::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background: radial-gradient(
-    ellipse 160% 120% at 50% 100%,
-    rgba(243, 166, 189, 0.32) 0%,
-    rgba(185, 166, 232, 0.16) 35%,
-    rgba(185, 166, 232, 0.06) 60%,
-    transparent 85%
-  );
-  pointer-events: none;
-  z-index: -1;
 }
 
 .header {
@@ -310,7 +294,9 @@ html, body {
   left: 0;
   right: 0;
   z-index: 250;
-  background: var(--panther-soft);
+  background: rgba(29, 22, 32, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
