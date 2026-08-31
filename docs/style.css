@@ -1,6 +1,7 @@
 :root {
   --panther: #110d13;
   --panther-soft: #1d1620;
+  --panther-elevated: #1c1a1e;
   --panther-line: #362a37;
   --peach: #f3a6bd;
   --lavender: #b9a6e8;
@@ -36,21 +37,23 @@ html, body {
   overflow-x: hidden;
 }
 
-/* Розовая подсветка снизу — киберпанк-градиент. Отрицательный z-index
-   держит его позади хедера/чата/композера (у них свой непрозрачный фон
-   там, где он есть), но виден сквозь прозрачные зоны .chat и .composer. */
+/* Розовая подсветка — теперь на весь экран (не только нижняя часть), но
+   по-прежнему ярче всего у низа и мягко гаснет к верху. Отрицательный
+   z-index держит её позади хедера/чата/композера (у них свой фон там, где
+   он есть), но видна сквозь прозрачные зоны .chat и .composer. */
 .app::before {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
+  top: 0;
   bottom: 0;
-  height: 55%;
   background: radial-gradient(
-    ellipse 140% 100% at 50% 100%,
-    rgba(243, 166, 189, 0.30) 0%,
-    rgba(185, 166, 232, 0.14) 45%,
-    transparent 75%
+    ellipse 160% 120% at 50% 100%,
+    rgba(243, 166, 189, 0.32) 0%,
+    rgba(185, 166, 232, 0.16) 35%,
+    rgba(185, 166, 232, 0.06) 60%,
+    transparent 85%
   );
   pointer-events: none;
   z-index: -1;
@@ -60,7 +63,7 @@ html, body {
   position: sticky;
   top: 0;
   z-index: 200;
-  background: var(--panther);
+  background: var(--panther-elevated);
   padding: 6px 20px 14px;
   border-bottom: 1px solid var(--panther-line);
   display: flex;
