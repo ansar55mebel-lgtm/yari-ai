@@ -342,6 +342,13 @@ applyProfile(profile);
 
 const profileIdentityEl = document.getElementById("profileIdentity");
 const profileEmailEl = document.getElementById("profileEmail");
+const profileEditBtn = document.getElementById("profileEditBtn");
+const profileEditMenu = document.getElementById("profileEditMenu");
+const newEmailInput = document.getElementById("newEmailInput");
+const saveEmailBtn = document.getElementById("saveEmailBtn");
+const emailEditMsg = document.getElementById("emailEditMsg");
+const deleteAccountBtn = document.getElementById("deleteAccountBtn");
+const profileLogoutBtn = document.getElementById("profileLogoutBtn");
 
 function renderProfileIdentity() {
   if (!profileIdentityEl) return;
@@ -350,7 +357,9 @@ function renderProfileIdentity() {
     if (profileEmailEl) profileEmailEl.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "";
   } else {
     profileIdentityEl.style.display = "none";
+    if (profileEditMenu) profileEditMenu.classList.remove("open");
   }
+  if (profileLogoutBtn) profileLogoutBtn.style.display = isLoggedIn() ? "block" : "none";
 }
 
 if (profileToggle) {
@@ -387,14 +396,78 @@ if (radiusSlider) {
   });
 }
 
+// ===== Карандашик в профиле: смена email / удаление аккаунта =====
+
+if (profileEditBtn) {
+  profileEditBtn.addEventListener("click", () => {
+    if (!profileEditMenu) return;
+    profileEditMenu.classList.toggle("open");
+    if (emailEditMsg) emailEditMsg.textContent = "";
+  });
+}
+
+if (saveEmailBtn) {
+  saveEmailBtn.addEventListener("click", async () => {
+    const newEmail = (newEmailInput.value || "").trim();
+    if (!newEmail) return;
+    if (emailEditMsg) emailEditMsg.textContent = "сохраняю…";
+    try {
+      const res = await fetch(`${API_BASE}/account/update-email`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email: newEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        if (emailEditMsg) emailEditMsg.textContent = data.error || "не удалось изменить email";
+        return;
+      }
+      localStorage.setItem(AUTH_EMAIL_KEY, newEmail);
+      if (profileEmailEl) profileEmailEl.textContent = newEmail;
+      newEmailInput.value = "";
+      if (emailEditMsg) emailEditMsg.textContent = "email обновлён";
+    } catch (err) {
+      if (emailEditMsg) emailEditMsg.textContent = "проблема с соединением";
+    }
+  });
+}
+
+if (deleteAccountBtn) {
+  deleteAccountBtn.addEventListener("click", async () => {
+    if (!confirm("Точно удалить аккаунт? Это необратимо, все чаты будут потеряны.")) return;
+    try {
+      const res = await fetch(`${API_BASE}/account/delete`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        alert(data.error || "не удалось удалить аккаунт");
+        return;
+      }
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_EMAIL_KEY);
+      location.reload();
+    } catch (err) {
+      alert("проблема с соединением");
+    }
+  });
+}
+
+if (profileLogoutBtn) {
+  profileLogoutBtn.addEventListener("click", handleLogout);
+}
+
 // ===== Авторизация =====
 
 function renderAuthUI() {
   if (isLoggedIn()) {
-    authToggle.textContent = "выйти";
-    authToggle.onclick = handleLogout;
+    // Кнопка "выйти" убрана из шапки — теперь выход только через самый
+    // низ панели профиля (profileLogoutBtn), см. renderProfileIdentity().
+    authToggle.style.display = "none";
     if (guestBanner) guestBanner.style.display = "none";
   } else {
+    authToggle.style.display = "";
     authToggle.textContent = "войти";
     authToggle.onclick = () => {
       authPanel.classList.toggle("open");
@@ -1032,9 +1105,17 @@ function showLanguageWelcomeIfNeeded() {
 
   renderAuthUI();
   renderProfileIdentity();
-  if (c) {
-    c.lastVisit = Date.now();
-    if (isLoggedIn()) updateChatMeta(c.id, { lastVisit: c.lastVisit });
+
+  // ВАЖНО: раньше здесь стояло "if (c) {...}", но переменная c нигде не
+  // была объявлена в этой области видимости — это кидало ReferenceError
+  // и обрывало весь init() на этой строке. Из-за этого renderChatsPanel()
+  // и renderMessages() ниже вообще не вызывались после reload/логаута —
+  // именно поэтому казалось, что диалоги "слетают" при обновлении
+  // страницы (на самом деле данные были целы, просто не отрисовывались).
+  const activeChat = getActiveChat();
+  if (activeChat) {
+    activeChat.lastVisit = Date.now();
+    if (isLoggedIn()) updateChatMeta(activeChat.id, { lastVisit: activeChat.lastVisit });
     else saveStore(store);
   }
 
