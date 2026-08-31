@@ -1,11 +1,12 @@
 :root {
-  --panther: #14110d;
-  --panther-soft: #201a15;
-  --panther-line: #362c22;
-  --peach: #e2a48f;
-  --amber-glint: #d7a24a;
-  --text: #f3ece3;
-  --text-dim: #93887c;
+  --panther: #110d13;
+  --panther-soft: #1d1620;
+  --panther-line: #362a37;
+  --peach: #f3a6bd;
+  --lavender: #b9a6e8;
+  --cyber-blue: #4fc3f7;
+  --text: #f4eef2;
+  --text-dim: #9a8b98;
 
   /* настраиваемые в профиле */
   --user-bubble-color: var(--peach);
@@ -33,6 +34,26 @@ html, body {
   isolation: isolate;
   background: var(--panther);
   overflow-x: hidden;
+}
+
+/* Розовая подсветка снизу — киберпанк-градиент. Отрицательный z-index
+   держит его позади хедера/чата/композера (у них свой непрозрачный фон
+   там, где он есть), но виден сквозь прозрачные зоны .chat и .composer. */
+.app::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 55%;
+  background: radial-gradient(
+    ellipse 140% 100% at 50% 100%,
+    rgba(243, 166, 189, 0.30) 0%,
+    rgba(185, 166, 232, 0.14) 45%,
+    transparent 75%
+  );
+  pointer-events: none;
+  z-index: -1;
 }
 
 .header {
@@ -73,7 +94,7 @@ html, body {
 }
 
 .brand-mark {
-  filter: drop-shadow(0 0 4px rgba(215, 162, 74, 0.55));
+  filter: drop-shadow(0 0 4px rgba(243, 166, 189, 0.55));
   flex-shrink: 0;
 }
 
@@ -92,7 +113,7 @@ html, body {
   gap: 5px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
-  color: var(--amber-glint);
+  color: var(--cyber-blue);
   text-transform: lowercase;
 }
 
@@ -130,7 +151,7 @@ html, body {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   text-transform: lowercase;
-  color: var(--amber-glint);
+  color: var(--peach);
   margin-bottom: 4px;
   letter-spacing: 0.05em;
 }
@@ -195,11 +216,11 @@ html, body {
 
 #input:focus {
   outline: none;
-  border-color: var(--amber-glint);
+  border-color: var(--lavender);
 }
 
 #send {
-  background: var(--amber-glint);
+  background: linear-gradient(135deg, var(--peach), var(--lavender));
   color: var(--panther);
   border: none;
   border-radius: 10px;
@@ -243,8 +264,8 @@ html, body {
 }
 
 .chats-toggle:hover, .new-chat-btn:hover {
-  border-color: var(--amber-glint);
-  color: var(--amber-glint);
+  border-color: var(--lavender);
+  color: var(--lavender);
 }
 
 /* Круглая кнопка-иконка (профиль) */
@@ -264,8 +285,8 @@ html, body {
 }
 
 .icon-btn:hover {
-  border-color: var(--amber-glint);
-  color: var(--amber-glint);
+  border-color: var(--lavender);
+  color: var(--lavender);
 }
 
 .icon-btn svg {
@@ -391,11 +412,11 @@ html, body {
 }
 
 .chat-item:hover {
-  background: #2a2117;
+  background: #241a22;
 }
 
 .chat-item.active {
-  color: var(--amber-glint);
+  color: var(--peach);
 }
 
 .chat-item-delete {
@@ -468,7 +489,7 @@ html, body {
 }
 
 .swatch.active {
-  border-color: var(--amber-glint);
+  border-color: var(--lavender);
 }
 
 .swatch-custom {
@@ -489,7 +510,7 @@ html, body {
 
 .radius-row input[type="range"] {
   flex: 1;
-  accent-color: var(--amber-glint);
+  accent-color: var(--lavender);
 }
 
 .radius-preview {
@@ -526,7 +547,7 @@ html, body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--amber-glint);
+  background-color: var(--cyber-blue);
   opacity: 0.4;
   animation: typing-bounce 1.2s infinite ease-in-out;
 }
@@ -574,8 +595,8 @@ html, body {
 }
 
 .auth-tab.active {
-  border-color: var(--amber-glint);
-  color: var(--amber-glint);
+  border-color: var(--lavender);
+  color: var(--lavender);
 }
 
 .auth-form {
@@ -596,11 +617,11 @@ html, body {
 
 .auth-form input:focus {
   outline: none;
-  border-color: var(--amber-glint);
+  border-color: var(--lavender);
 }
 
 .auth-form button[type="submit"] {
-  background: var(--amber-glint);
+  background: linear-gradient(135deg, var(--peach), var(--lavender));
   color: var(--panther);
   border: none;
   border-radius: 8px;
@@ -626,7 +647,7 @@ html, body {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 20px;
-  background: #2a2117;
+  background: #241820;
   border-bottom: 1px solid var(--panther-line);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
@@ -636,8 +657,8 @@ html, body {
 
 .guest-banner button {
   background: transparent;
-  border: 1px solid var(--amber-glint);
-  color: var(--amber-glint);
+  border: 1px solid var(--peach);
+  color: var(--peach);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   padding: 5px 10px;
@@ -650,7 +671,7 @@ html, body {
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--amber-glint);
+  outline: 2px solid var(--lavender);
   outline-offset: 2px;
 }
 
