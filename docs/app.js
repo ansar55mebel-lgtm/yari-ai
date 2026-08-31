@@ -61,7 +61,7 @@ const GUEST_DAILY_LIMIT = 10;
 const USER_DAILY_LIMIT = 15;
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
-const DEFAULT_PROFILE = { color: "#e2a48f", radius: 14 };
+const DEFAULT_PROFILE = { color: "#f3a6bd", radius: 14 };
 
 function randomGapMs() {
   const days = MIN_GAP_DAYS + Math.random() * (MAX_GAP_DAYS - MIN_GAP_DAYS);
