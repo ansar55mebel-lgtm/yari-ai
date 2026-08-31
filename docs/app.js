@@ -22,12 +22,14 @@ const guestBannerBtn = document.getElementById("guestBannerBtn");
 const forgotPasswordLink = document.getElementById("forgotPasswordLink");
 const forgotForm = document.getElementById("forgotForm");
 const resetForm = document.getElementById("resetForm");
-const statusEl = document.getElementById("status");
+const statusTextEl = document.getElementById("statusText");
+const statusDotsEl = document.getElementById("statusDots");
 
-// ===== Статус в шапке: "на связи" / "печатает" =====
+// ===== Статус в шапке: "на связи" / "печатает" (с анимированными точками) =====
 
-function setStatus(text) {
-  if (statusEl) statusEl.textContent = text;
+function setStatus(isTyping) {
+  if (statusTextEl) statusTextEl.textContent = isTyping ? "печатает" : "на связи";
+  if (statusDotsEl) statusDotsEl.style.display = isTyping ? "inline-flex" : "none";
 }
 
 // ===== Supabase / Edge Function =====
@@ -54,7 +56,9 @@ const STORAGE_KEY = "yari_chats_v1";
 const PROFILE_KEY = "yari_profile_v1";
 const META_KEY = "yari_chat_meta_v1";
 const GUEST_LIMIT_KEY = "yari_guest_limit_v1";
-const GUEST_DAILY_LIMIT = 50;
+const USER_LIMIT_KEY = "yari_user_limit_v1";
+const GUEST_DAILY_LIMIT = 10;
+const USER_DAILY_LIMIT = 15;
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
 const DEFAULT_PROFILE = { color: "#e2a48f", radius: 14 };
@@ -64,13 +68,17 @@ function randomGapMs() {
   return days * 24 * 60 * 60 * 1000;
 }
 
-// ===== Гостевой дневной лимит =====
+// ===== Дневной лимит сообщений (гость: GUEST_LIMIT_KEY / 10,
+// зарегистрированный: USER_LIMIT_KEY / 15). Это client-side заглушка —
+// хранится в localStorage, так что обходится очисткой хранилища. Настоящая
+// защита требует счётчика на бэкенде (в super-responder), это отдельная
+// задача при необходимости. =====
 
-function getGuestUsage() {
+function getDailyUsage(key) {
   const today = new Date().toISOString().slice(0, 10);
   let data;
   try {
-    data = JSON.parse(localStorage.getItem(GUEST_LIMIT_KEY)) || { date: today, count: 0 };
+    data = JSON.parse(localStorage.getItem(key)) || { date: today, count: 0 };
   } catch (e) {
     data = { date: today, count: 0 };
   }
@@ -78,10 +86,10 @@ function getGuestUsage() {
   return data;
 }
 
-function incrementGuestUsage() {
-  const data = getGuestUsage();
+function incrementDailyUsage(key) {
+  const data = getDailyUsage(key);
   data.count++;
-  localStorage.setItem(GUEST_LIMIT_KEY, JSON.stringify(data));
+  localStorage.setItem(key, JSON.stringify(data));
   return data.count;
 }
 
@@ -332,6 +340,19 @@ function applyProfile(profile) {
 let profile = loadProfile();
 applyProfile(profile);
 
+const profileIdentityEl = document.getElementById("profileIdentity");
+const profileEmailEl = document.getElementById("profileEmail");
+
+function renderProfileIdentity() {
+  if (!profileIdentityEl) return;
+  if (isLoggedIn()) {
+    profileIdentityEl.style.display = "flex";
+    if (profileEmailEl) profileEmailEl.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "";
+  } else {
+    profileIdentityEl.style.display = "none";
+  }
+}
+
 if (profileToggle) {
   profileToggle.addEventListener("click", () => {
     profilePanel.classList.toggle("open");
@@ -370,7 +391,7 @@ if (radiusSlider) {
 
 function renderAuthUI() {
   if (isLoggedIn()) {
-    authToggle.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "выйти";
+    authToggle.textContent = "выйти";
     authToggle.onclick = handleLogout;
     if (guestBanner) guestBanner.style.display = "none";
   } else {
@@ -771,15 +792,17 @@ function looksLikeProactiveOff(text) {
 async function sendMessage(text) {
   const c = getActiveChat();
 
-  if (!isLoggedIn()) {
-    const usage = getGuestUsage();
-    if (usage.count >= GUEST_DAILY_LIMIT) {
-      addMessageToDOM(
-        "assistant",
-        "на сегодня гостевой лимит сообщений исчерпан (50 в день). зарегистрируйся, чтобы продолжить без ограничений."
-      );
-      return;
-    }
+  const limitKey = isLoggedIn() ? USER_LIMIT_KEY : GUEST_LIMIT_KEY;
+  const dailyLimit = isLoggedIn() ? USER_DAILY_LIMIT : GUEST_DAILY_LIMIT;
+  const usage = getDailyUsage(limitKey);
+  if (usage.count >= dailyLimit) {
+    addMessageToDOM(
+      "assistant",
+      isLoggedIn()
+        ? `на сегодня лимит сообщений исчерпан (${USER_DAILY_LIMIT} в день) — общий бюджет ии на день небольшой, возвращайся завтра.`
+        : `на сегодня гостевой лимит сообщений исчерпан (${GUEST_DAILY_LIMIT} в день). зарегистрируйся — с аккаунтом лимит выше (${USER_DAILY_LIMIT} в день).`
+    );
+    return;
   }
 
   if (looksLikeProactiveOff(text)) {
@@ -798,8 +821,8 @@ async function sendMessage(text) {
     await persistChatToServer(c, titleChanged);
   } else {
     saveStore(store);
-    incrementGuestUsage();
   }
+  incrementDailyUsage(limitKey);
 
   addMessageToDOM("user", text);
   renderChatsPanel();
@@ -814,14 +837,14 @@ async function sendMessage(text) {
   const typingBubble = document.createElement("div");
   typingBubble.className = "msg-bubble typing-indicator";
   typingBubble.innerHTML =
-    '<span class="typing-text">печатает</span><span class="typing-dots"><span></span><span></span><span></span></span>';
+    '<span class="typing-dots"><span></span><span></span><span></span></span>';
 
   typingEl.appendChild(typingLabel);
   typingEl.appendChild(typingBubble);
   chat.appendChild(typingEl);
   chat.scrollTop = chat.scrollHeight;
 
-  setStatus("печатает");
+  setStatus(true);
 
   try {
     const res = await fetch(`${API_BASE}/chat`, {
@@ -860,7 +883,7 @@ async function sendMessage(text) {
     typingEl.remove();
     addMessageToDOM("assistant", `у меня тут что-то с соединением: ${err && err.message ? err.message : err}. попробуй ещё раз.`);
   } finally {
-    setStatus("на связи");
+    setStatus(false);
   }
 }
 
@@ -870,7 +893,7 @@ async function checkProactive() {
   if (c.messages.length === 0) return;
   if (Date.now() < c.nextProactiveAt) return;
 
-  setStatus("печатает");
+  setStatus(true);
 
   try {
     const res = await fetch(`${API_BASE}/proactive`, {
@@ -904,7 +927,7 @@ async function checkProactive() {
   } catch (err) {
     // тихо промолчим, попробуем в другой раз
   } finally {
-    setStatus("на связи");
+    setStatus(false);
   }
 }
 
@@ -1008,8 +1031,7 @@ function showLanguageWelcomeIfNeeded() {
   }
 
   renderAuthUI();
-
-  const c = getActiveChat();
+  renderProfileIdentity();
   if (c) {
     c.lastVisit = Date.now();
     if (isLoggedIn()) updateChatMeta(c.id, { lastVisit: c.lastVisit });
