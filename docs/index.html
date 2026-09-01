@@ -39,12 +39,12 @@
 
   <div class="app">
     <div class="guest-banner" id="guestBanner">
-      <span>гостевой режим: 1 чат, до 50 сообщений в день</span>
+      <span>гостевой режим: 1 чат, до 10 сообщений в день</span>
       <button id="guestBannerBtn">войти / зарегистрироваться</button>
     </div>
 
     <div class="chats-panel" id="chatsPanel">
-      <div class="panel-title">чаты</div>
+      <div class="panel-title">Чаты</div>
       <div class="chats-list" id="chatsList"></div>
     </div>
 
@@ -92,12 +92,12 @@
       <div>
         <div class="profile-section-label">цвет твоих баблов</div>
         <div class="swatches" id="swatches">
-          <button class="swatch" style="background:linear-gradient(to top,#e2536a 0%,#f6a94e 100%)" data-color="linear-gradient(to top,#e2536a 0%,#f6a94e 100%)" title="закат"></button>
           <button class="swatch" style="background:#e58fb0" data-color="#e58fb0" title="фуксия"></button>
           <button class="swatch" style="background:#8f7fe0" data-color="#8f7fe0" title="индиго"></button>
           <button class="swatch" style="background:#4fc3f7" data-color="#4fc3f7" title="неон-синий"></button>
           <button class="swatch" style="background:#6fc98f" data-color="#6fc98f" title="зелёный"></button>
           <button class="swatch" style="background:linear-gradient(135deg,#6fc98f 0%,#5fc2c2 50%,#4fc3f7 100%)" data-color="linear-gradient(135deg,#6fc98f 0%,#5fc2c2 50%,#4fc3f7 100%)" title="зелёно-синий"></button>
+          <button class="swatch" style="background:linear-gradient(to top,#e6a3b4 0%,#f0be8c 100%)" data-color="linear-gradient(to top,#e6a3b4 0%,#f0be8c 100%)" title="закат"></button>
         </div>
       </div>
       <div>
@@ -154,15 +154,26 @@
 
     <main class="chat" id="chat"></main>
 
-    <form class="composer" id="composer">
-      <textarea id="input" placeholder="напиши что-нибудь…" rows="1"></textarea>
-      <button type="submit" id="send" aria-label="отправить" title="отправить">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
-    </form>
+    <div class="msg-action-menu" id="msgActionMenu" style="display:none;">
+      <button type="button" id="msgActionCopy">копировать</button>
+      <button type="button" id="msgActionReply">ответить</button>
+    </div>
+
+    <div class="composer-wrap">
+      <div class="quote-preview" id="quotePreview" style="display:none;">
+        <div class="quote-preview-text" id="quotePreviewText"></div>
+        <button type="button" class="quote-preview-close" id="quotePreviewClose" aria-label="отменить цитату">✕</button>
+      </div>
+      <form class="composer" id="composer">
+        <textarea id="input" placeholder="напиши что-нибудь…" rows="1"></textarea>
+        <button type="submit" id="send" aria-label="отправить" title="отправить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </div>
   </div>
 
   <script src="app.js"></script>
