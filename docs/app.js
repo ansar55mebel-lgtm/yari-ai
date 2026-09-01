@@ -24,11 +24,129 @@ const resetForm = document.getElementById("resetForm");
 const statusTextEl = document.getElementById("statusText");
 const statusDotsEl = document.getElementById("statusDots");
 
+// ===== Локализация (ru / en) =====
+
+const I18N = {
+  ru: {
+    chatsToggle: "чаты ▾",
+    panelTitleChats: "чаты",
+    newChatTitle: "новый чат",
+    profileTitle: "профиль",
+    login: "войти",
+    guestBannerText: "гостевой режим: 1 чат, до 50 сообщений в день",
+    guestBannerBtn: "войти / зарегистрироваться",
+    bubbleColorLabel: "цвет твоих баблов",
+    bubbleRadiusLabel: "угловатость баблов",
+    changeEmailLabel: "изменить email",
+    newEmailPlaceholder: "новый email",
+    deleteAccount: "удалить аккаунт",
+    logout: "выйти",
+    loginCta: "войти / создать аккаунт",
+    composerPlaceholder: "напиши что-нибудь…",
+    greeting: "привет. пиши, о чём хотела поговорить — я тут.",
+    statusOnline: "на связи",
+    statusTyping: "печатает",
+    tabLogin: "вход",
+    tabRegister: "регистрация",
+    fieldEmail: "email",
+    fieldPassword: "пароль",
+    loginSubmit: "войти",
+    forgotLink: "забыли пароль?",
+    registerPasswordPh: "пароль (от 6 символов)",
+    registerSubmit: "зарегистрироваться",
+  },
+  en: {
+    chatsToggle: "chats ▾",
+    panelTitleChats: "chats",
+    newChatTitle: "new chat",
+    profileTitle: "profile",
+    login: "log in",
+    guestBannerText: "guest mode: 1 chat, up to 50 messages a day",
+    guestBannerBtn: "log in / sign up",
+    bubbleColorLabel: "your bubble color",
+    bubbleRadiusLabel: "bubble roundness",
+    changeEmailLabel: "change email",
+    newEmailPlaceholder: "new email",
+    deleteAccount: "delete account",
+    logout: "log out",
+    loginCta: "log in / sign up",
+    composerPlaceholder: "type something…",
+    greeting: "hi. write what's on your mind — I'm here.",
+    statusOnline: "online",
+    statusTyping: "typing",
+    tabLogin: "log in",
+    tabRegister: "sign up",
+    fieldEmail: "email",
+    fieldPassword: "password",
+    loginSubmit: "log in",
+    forgotLink: "forgot password?",
+    registerPasswordPh: "password (min 6 characters)",
+    registerSubmit: "sign up",
+  },
+};
+
+function currentLang() {
+  return localStorage.getItem("yari_lang") === "en" ? "en" : "ru";
+}
+
+function tr(key) {
+  const lang = currentLang();
+  return (I18N[lang] && I18N[lang][key]) || I18N.ru[key] || key;
+}
+
 // ===== Статус в шапке: "на связи" / "печатает" (с анимированными точками) =====
 
 function setStatus(isTyping) {
-  if (statusTextEl) statusTextEl.textContent = isTyping ? "печатает" : "на связи";
+  if (statusTextEl) statusTextEl.textContent = isTyping ? tr("statusTyping") : tr("statusOnline");
   if (statusDotsEl) statusDotsEl.style.display = isTyping ? "inline-flex" : "none";
+}
+
+function applyLanguage() {
+  if (chatsToggle) chatsToggle.textContent = tr("chatsToggle");
+  const panelTitleEl = document.querySelector(".panel-title");
+  if (panelTitleEl) panelTitleEl.textContent = tr("panelTitleChats");
+  if (newChatBtn) newChatBtn.title = tr("newChatTitle");
+  if (profileToggle) profileToggle.title = tr("profileTitle");
+  if (!isLoggedIn() && authToggle) authToggle.textContent = tr("login");
+
+  const guestBannerTextEl = guestBanner ? guestBanner.querySelector("span") : null;
+  if (guestBannerTextEl) guestBannerTextEl.textContent = tr("guestBannerText");
+  if (guestBannerBtn) guestBannerBtn.textContent = tr("guestBannerBtn");
+
+  const profileLabels = document.querySelectorAll(".profile-section-label");
+  if (profileLabels[0]) profileLabels[0].textContent = tr("bubbleColorLabel");
+  if (profileLabels[1]) profileLabels[1].textContent = tr("bubbleRadiusLabel");
+
+  const changeEmailLabelEl = document.querySelector('label[for="newEmailInput"]');
+  if (changeEmailLabelEl) changeEmailLabelEl.textContent = tr("changeEmailLabel");
+  if (newEmailInput) newEmailInput.placeholder = tr("newEmailPlaceholder");
+
+  const deleteLabelEl = deleteAccountBtn ? deleteAccountBtn.querySelector(".label-text") : null;
+  if (deleteLabelEl) deleteLabelEl.textContent = tr("deleteAccount");
+  const logoutLabelEl = profileLogoutBtn ? profileLogoutBtn.querySelector(".label-text") : null;
+  if (logoutLabelEl) logoutLabelEl.textContent = tr("logout");
+  const loginCtaLabelEl = profileLoginCta ? profileLoginCta.querySelector(".label-text") : null;
+  if (loginCtaLabelEl) loginCtaLabelEl.textContent = tr("loginCta");
+
+  if (input) input.placeholder = tr("composerPlaceholder");
+
+  if (tabLogin) tabLogin.textContent = tr("tabLogin");
+  if (tabRegister) tabRegister.textContent = tr("tabRegister");
+  const loginEmailEl = document.getElementById("loginEmail");
+  if (loginEmailEl) loginEmailEl.placeholder = tr("fieldEmail");
+  const loginPasswordEl = document.getElementById("loginPassword");
+  if (loginPasswordEl) loginPasswordEl.placeholder = tr("fieldPassword");
+  const loginSubmitEl = loginForm ? loginForm.querySelector('button[type="submit"]') : null;
+  if (loginSubmitEl) loginSubmitEl.textContent = tr("loginSubmit");
+  if (forgotPasswordLink) forgotPasswordLink.textContent = tr("forgotLink");
+  const registerEmailEl = document.getElementById("registerEmail");
+  if (registerEmailEl) registerEmailEl.placeholder = tr("fieldEmail");
+  const registerPasswordEl = document.getElementById("registerPassword");
+  if (registerPasswordEl) registerPasswordEl.placeholder = tr("registerPasswordPh");
+  const registerSubmitEl = registerForm ? registerForm.querySelector('button[type="submit"]') : null;
+  if (registerSubmitEl) registerSubmitEl.textContent = tr("registerSubmit");
+
+  setStatus(false);
 }
 
 // ===== Supabase / Edge Function =====
@@ -60,7 +178,7 @@ const GUEST_DAILY_LIMIT = 10;
 const USER_DAILY_LIMIT = 15;
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
-const DEFAULT_PROFILE = { color: "linear-gradient(160deg,#e2536a 0%,#f6a94e 100%)", radius: 14 };
+const DEFAULT_PROFILE = { color: "linear-gradient(to top,#e2536a 0%,#f6a94e 100%)", radius: 14 };
 
 function randomGapMs() {
   const days = MIN_GAP_DAYS + Math.random() * (MAX_GAP_DAYS - MIN_GAP_DAYS);
@@ -843,7 +961,7 @@ function renderMessages() {
   chat.innerHTML = "";
   const c = getActiveChat();
   if (!c || c.messages.length === 0) {
-    addMessageToDOM("assistant", "привет. пиши, о чём хотела поговорить — я тут.");
+    addMessageToDOM("assistant", tr("greeting"));
     return;
   }
   c.messages.forEach((m) => addMessageToDOM(m.role, m.content, { proactive: m.proactive }));
@@ -1031,13 +1149,6 @@ input.addEventListener("input", () => {
   input.style.height = Math.min(input.scrollHeight, 120) + "px";
 });
 
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    form.requestSubmit();
-  }
-});
-
 // ===== Приветствие / выбор языка для новых гостей =====
 
 const LANG_CHOSEN_KEY = "yari_lang_chosen";
@@ -1072,7 +1183,8 @@ function showLanguageWelcomeIfNeeded() {
     localStorage.setItem(LANG_CHOSEN_KEY, "1");
     localStorage.setItem("yari_lang", lang);
     overlay.remove();
-    if (lang === "en" && input) input.placeholder = "type something...";
+    applyLanguage();
+    renderMessages();
   }
 
   const ruBtn = document.createElement("button");
@@ -1132,9 +1244,6 @@ function showLanguageWelcomeIfNeeded() {
   renderMessages();
   checkProactive();
   renderRolePanel();
-
-  if (!isLoggedIn() && localStorage.getItem("yari_lang") === "en" && input) {
-    input.placeholder = "type something...";
-  }
+  applyLanguage();
   showLanguageWelcomeIfNeeded();
 })();
