@@ -8,7 +8,6 @@ const newChatBtn = document.getElementById("newChatBtn");
 const profileToggle = document.getElementById("profileToggle");
 const profilePanel = document.getElementById("profilePanel");
 const swatchesEl = document.getElementById("swatches");
-const customColorEl = document.getElementById("customColor");
 const radiusSlider = document.getElementById("radiusSlider");
 const authToggle = document.getElementById("authToggle");
 const authPanel = document.getElementById("authPanel");
@@ -61,7 +60,7 @@ const GUEST_DAILY_LIMIT = 10;
 const USER_DAILY_LIMIT = 15;
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
-const DEFAULT_PROFILE = { color: "#f3a6bd", radius: 14 };
+const DEFAULT_PROFILE = { color: "linear-gradient(160deg,#e2536a 0%,#f6a94e 100%)", radius: 14 };
 
 function randomGapMs() {
   const days = MIN_GAP_DAYS + Math.random() * (MAX_GAP_DAYS - MIN_GAP_DAYS);
@@ -349,17 +348,27 @@ const saveEmailBtn = document.getElementById("saveEmailBtn");
 const emailEditMsg = document.getElementById("emailEditMsg");
 const deleteAccountBtn = document.getElementById("deleteAccountBtn");
 const profileLogoutBtn = document.getElementById("profileLogoutBtn");
+const profileLoginCta = document.getElementById("profileLoginCta");
 
 function renderProfileIdentity() {
   if (!profileIdentityEl) return;
+
+  // Identity-блок (аватар + подпись) теперь виден и гостю: залогиненному
+  // показываем email, гостю — метку "пользователь". Карандашик (смена
+  // email / удаление аккаунта) имеет смысл только для аккаунта, поэтому
+  // доступен исключительно залогиненным.
+  profileIdentityEl.style.display = "flex";
   if (isLoggedIn()) {
-    profileIdentityEl.style.display = "flex";
     if (profileEmailEl) profileEmailEl.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "";
+    if (profileEditBtn) profileEditBtn.style.display = "flex";
   } else {
-    profileIdentityEl.style.display = "none";
+    if (profileEmailEl) profileEmailEl.textContent = "пользователь";
+    if (profileEditBtn) profileEditBtn.style.display = "none";
     if (profileEditMenu) profileEditMenu.classList.remove("open");
   }
-  if (profileLogoutBtn) profileLogoutBtn.style.display = isLoggedIn() ? "block" : "none";
+
+  if (profileLogoutBtn) profileLogoutBtn.style.display = isLoggedIn() ? "inline-flex" : "none";
+  if (profileLoginCta) profileLoginCta.style.display = isLoggedIn() ? "none" : "inline-flex";
 }
 
 if (profileToggle) {
@@ -377,14 +386,6 @@ if (swatchesEl) {
       saveProfile(profile);
       applyProfile(profile);
     });
-  });
-}
-
-if (customColorEl) {
-  customColorEl.addEventListener("input", () => {
-    profile.color = customColorEl.value;
-    saveProfile(profile);
-    applyProfile(profile);
   });
 }
 
@@ -456,6 +457,14 @@ if (deleteAccountBtn) {
 
 if (profileLogoutBtn) {
   profileLogoutBtn.addEventListener("click", handleLogout);
+}
+
+if (profileLoginCta) {
+  profileLoginCta.addEventListener("click", () => {
+    authPanel.classList.add("open");
+    chatsPanel.classList.remove("open");
+    profilePanel.classList.remove("open");
+  });
 }
 
 // ===== Авторизация =====
