@@ -43,8 +43,6 @@ body {
    (.app), чтобы лого/кнопки визуально совпадали с чатом под шапкой. */
 .header {
   width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -59,6 +57,19 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+}
+
+/* Шапка ограничена по ширине ТОЛЬКО в горизонтальной ориентации — чтобы
+   совпадать по краям с колонкой чата (.app). В вертикальной ориентации
+   остаётся во всю ширину экрана всегда, независимо от точной ширины
+   экрана в CSS-пикселях конкретного устройства (у больших Android-
+   планшетов портретная ширина может быть больше 640px, поэтому привязка
+   к max-width без учёта ориентации не была надёжной). */
+@media (orientation: landscape) {
+  .header {
+    max-width: 640px;
+    margin: 0 auto;
+  }
 }
 
 .header-left {
@@ -401,8 +412,8 @@ body {
    внутренних углов. .app немного сжимается, чтобы панели при открытии
    занимали чуть больше места и примыкали встык. .header-inner сжимается
    до той же ширины, чтобы шапка совпадала по краям с колонкой чата. */
-@media (min-width: 1040px) {
-  .header-inner {
+@media (min-width: 1040px) and (orientation: landscape) {
+  .header {
     max-width: 600px;
   }
   .app {
