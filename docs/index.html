@@ -69,23 +69,25 @@
             <label class="profile-section-label" for="newEmailInput">изменить email</label>
             <div class="profile-edit-inline">
               <input type="email" id="newEmailInput" placeholder="новый email" autocomplete="email" />
-              <button type="button" id="saveEmailBtn">сохранить</button>
+              <button type="button" class="profile-icon-confirm" id="saveEmailBtn" aria-label="сохранить" title="сохранить">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </button>
             </div>
             <div class="profile-edit-msg" id="emailEditMsg"></div>
           </div>
-          <button type="button" class="profile-danger-btn" id="deleteAccountBtn">удалить аккаунт</button>
+          <button type="button" class="profile-link-danger" id="deleteAccountBtn">удалить аккаунт</button>
         </div>
       </div>
       <div>
         <div class="profile-section-label">цвет твоего облачка</div>
         <div class="swatches" id="swatches">
-          <button class="swatch" style="background:#f3a6bd" data-color="#f3a6bd" title="розовый"></button>
-          <button class="swatch" style="background:#e58fb0" data-color="#e58fb0" title="фуксия"></button>
-          <button class="swatch" style="background:#f4c2d7" data-color="#f4c2d7" title="пыльная роза"></button>
-          <button class="swatch" style="background:#b9a6e8" data-color="#b9a6e8" title="лаванда"></button>
-          <button class="swatch" style="background:#8f7fe0" data-color="#8f7fe0" title="индиго"></button>
-          <button class="swatch" style="background:#4fc3f7" data-color="#4fc3f7" title="неон-синий"></button>
-          <input type="color" class="swatch-custom" id="customColor" title="свой цвет" />
+          <button class="swatch" style="background:linear-gradient(160deg,#e2536a 0%,#f6a94e 100%)" data-color="linear-gradient(160deg,#e2536a 0%,#f6a94e 100%)" title="закат"></button>
+          <button class="swatch" style="background:linear-gradient(160deg,#c2255c 0%,#ff6f91 100%)" data-color="linear-gradient(160deg,#c2255c 0%,#ff6f91 100%)" title="фуксия"></button>
+          <button class="swatch" style="background:linear-gradient(160deg,#5b4fc4 0%,#9b8cf2 100%)" data-color="linear-gradient(160deg,#5b4fc4 0%,#9b8cf2 100%)" title="индиго"></button>
+          <button class="swatch" style="background:linear-gradient(160deg,#1f8fd6 0%,#6fd8f2 100%)" data-color="linear-gradient(160deg,#1f8fd6 0%,#6fd8f2 100%)" title="неон-синий"></button>
+          <button class="swatch" style="background:linear-gradient(160deg,#2e9e6b 0%,#8fe3b0 100%)" data-color="linear-gradient(160deg,#2e9e6b 0%,#8fe3b0 100%)" title="зелёный"></button>
         </div>
       </div>
       <div>
@@ -95,7 +97,22 @@
           <div class="radius-preview" id="radiusPreview"></div>
         </div>
       </div>
-      <button type="button" class="profile-danger-btn profile-logout-btn" id="profileLogoutBtn" style="display:none;">выйти</button>
+      <button type="button" class="profile-link-danger" id="profileLogoutBtn" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        выйти
+      </button>
+      <button type="button" class="profile-link-cta" id="profileLoginCta" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+          <polyline points="10 17 15 12 10 7"></polyline>
+          <line x1="15" y1="12" x2="3" y2="12"></line>
+        </svg>
+        войти / создать аккаунт
+      </button>
     </div>
 
     <div class="auth-panel" id="authPanel">
