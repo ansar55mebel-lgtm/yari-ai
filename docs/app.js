@@ -23,17 +23,24 @@ const forgotForm = document.getElementById("forgotForm");
 const resetForm = document.getElementById("resetForm");
 const statusTextEl = document.getElementById("statusText");
 const statusDotsEl = document.getElementById("statusDots");
+const msgActionMenu = document.getElementById("msgActionMenu");
+const msgActionCopy = document.getElementById("msgActionCopy");
+const msgActionReply = document.getElementById("msgActionReply");
+const quotePreview = document.getElementById("quotePreview");
+const quotePreviewText = document.getElementById("quotePreviewText");
+const quotePreviewClose = document.getElementById("quotePreviewClose");
 
 // ===== Локализация (ru / en) =====
 
 const I18N = {
   ru: {
     chatsToggle: "чаты ▾",
-    panelTitleChats: "чаты",
+    panelTitleChats: "Чаты",
     newChatTitle: "новый чат",
     profileTitle: "профиль",
     login: "войти",
-    guestBannerText: "гостевой режим: 1 чат, до 50 сообщений в день",
+    guestUser: "Пользователь",
+    guestBannerText: "гостевой режим: 1 чат, до 10 сообщений в день",
     guestBannerBtn: "войти / зарегистрироваться",
     bubbleColorLabel: "цвет твоих баблов",
     bubbleRadiusLabel: "угловатость баблов",
@@ -54,14 +61,18 @@ const I18N = {
     forgotLink: "забыли пароль?",
     registerPasswordPh: "пароль (от 6 символов)",
     registerSubmit: "зарегистрироваться",
+    msgCopy: "копировать",
+    msgReply: "ответить",
+    quoteCancel: "отменить цитату",
   },
   en: {
     chatsToggle: "chats ▾",
-    panelTitleChats: "chats",
+    panelTitleChats: "Chats",
     newChatTitle: "new chat",
     profileTitle: "profile",
     login: "log in",
-    guestBannerText: "guest mode: 1 chat, up to 50 messages a day",
+    guestUser: "User",
+    guestBannerText: "guest mode: 1 chat, up to 10 messages a day",
     guestBannerBtn: "log in / sign up",
     bubbleColorLabel: "your bubble color",
     bubbleRadiusLabel: "bubble roundness",
@@ -82,6 +93,9 @@ const I18N = {
     forgotLink: "forgot password?",
     registerPasswordPh: "password (min 6 characters)",
     registerSubmit: "sign up",
+    msgCopy: "copy",
+    msgReply: "reply",
+    quoteCancel: "cancel quote",
   },
 };
 
@@ -146,6 +160,11 @@ function applyLanguage() {
   const registerSubmitEl = registerForm ? registerForm.querySelector('button[type="submit"]') : null;
   if (registerSubmitEl) registerSubmitEl.textContent = tr("registerSubmit");
 
+  if (msgActionCopy) msgActionCopy.textContent = tr("msgCopy");
+  if (msgActionReply) msgActionReply.textContent = tr("msgReply");
+  if (quotePreviewClose) quotePreviewClose.setAttribute("aria-label", tr("quoteCancel"));
+  if (!isLoggedIn() && profileEmailEl) profileEmailEl.textContent = tr("guestUser");
+
   setStatus(false);
 }
 
@@ -178,7 +197,7 @@ const GUEST_DAILY_LIMIT = 10;
 const USER_DAILY_LIMIT = 15;
 const MIN_GAP_DAYS = 2;
 const MAX_GAP_DAYS = 4;
-const DEFAULT_PROFILE = { color: "linear-gradient(to top,#e2536a 0%,#f6a94e 100%)", radius: 14 };
+const DEFAULT_PROFILE = { color: "#4fc3f7", radius: 14 };
 
 function randomGapMs() {
   const days = MIN_GAP_DAYS + Math.random() * (MAX_GAP_DAYS - MIN_GAP_DAYS);
@@ -480,7 +499,7 @@ function renderProfileIdentity() {
     if (profileEmailEl) profileEmailEl.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "";
     if (profileEditBtn) profileEditBtn.style.display = "flex";
   } else {
-    if (profileEmailEl) profileEmailEl.textContent = "пользователь";
+    if (profileEmailEl) profileEmailEl.textContent = tr("guestUser");
     if (profileEditBtn) profileEditBtn.style.display = "none";
     if (profileEditMenu) profileEditMenu.classList.remove("open");
   }
@@ -1141,12 +1160,148 @@ form.addEventListener("submit", async (e) => {
   const unlocked = await tryUnlock(text);
   if (unlocked) return;
 
-  sendMessage(text);
+  let finalText = text;
+  if (pendingQuote) {
+    const quoted = pendingQuote
+      .split("\n")
+      .map((line) => "» " + line)
+      .join("\n");
+    finalText = `${quoted}\n\n${text}`;
+  }
+  clearQuote();
+
+  sendMessage(finalText);
 });
 
 input.addEventListener("input", () => {
   input.style.height = "auto";
   input.style.height = Math.min(input.scrollHeight, 120) + "px";
+});
+
+// ===== Действия над сообщением: копировать / ответить (с цитатой) =====
+// Долгий тап по баблу целиком — меню для всего текста сообщения.
+// Выделение куска текста внутри бабла — то же меню, но только для
+// выделенного фрагмента (чтобы не копировать/цитировать лишнее).
+
+let pendingQuote = null;
+
+function setQuote(text) {
+  pendingQuote = text;
+  if (quotePreviewText) {
+    quotePreviewText.textContent = text.length > 140 ? text.slice(0, 140) + "…" : text;
+  }
+  if (quotePreview) quotePreview.style.display = "flex";
+  if (input) input.focus();
+}
+
+function clearQuote() {
+  pendingQuote = null;
+  if (quotePreview) quotePreview.style.display = "none";
+}
+
+if (quotePreviewClose) {
+  quotePreviewClose.addEventListener("click", clearQuote);
+}
+
+let msgActionText = "";
+
+function showMsgActionMenu(x, y, text) {
+  if (!msgActionMenu || !text) return;
+  msgActionText = text;
+  msgActionMenu.style.display = "flex";
+  const menuWidth = msgActionMenu.offsetWidth || 160;
+  const clampedX = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+  const clampedY = Math.max(8, y);
+  msgActionMenu.style.left = clampedX + "px";
+  msgActionMenu.style.top = clampedY + "px";
+}
+
+function hideMsgActionMenu() {
+  if (!msgActionMenu) return;
+  msgActionMenu.style.display = "none";
+  msgActionText = "";
+}
+
+if (msgActionCopy) {
+  msgActionCopy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(msgActionText);
+    } catch (err) {
+      // буфер обмена недоступен — тихо промолчим
+    }
+    hideMsgActionMenu();
+  });
+}
+
+if (msgActionReply) {
+  msgActionReply.addEventListener("click", () => {
+    setQuote(msgActionText);
+    hideMsgActionMenu();
+  });
+}
+
+document.addEventListener("click", (e) => {
+  if (msgActionMenu && msgActionMenu.style.display !== "none" && !msgActionMenu.contains(e.target)) {
+    hideMsgActionMenu();
+  }
+});
+
+// Долгий тап (или долгое нажатие мышью) по баблу целиком
+let pressTimer = null;
+let pressStart = null;
+
+chat.addEventListener("pointerdown", (e) => {
+  const bubble = e.target.closest(".msg-bubble");
+  if (!bubble) return;
+  pressStart = { x: e.clientX, y: e.clientY };
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    showMsgActionMenu(e.clientX, Math.max(e.clientY - 56, 8), bubble.textContent);
+  }, 450);
+});
+
+chat.addEventListener("pointermove", (e) => {
+  if (!pressTimer || !pressStart) return;
+  const dx = Math.abs(e.clientX - pressStart.x);
+  const dy = Math.abs(e.clientY - pressStart.y);
+  if (dx > 8 || dy > 8) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+});
+
+chat.addEventListener("pointerup", () => {
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+});
+
+chat.addEventListener("pointercancel", () => {
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+});
+
+// Выделение фрагмента текста внутри бабла — показываем то же меню,
+// но только для выделенного куска
+document.addEventListener("selectionchange", () => {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+
+  const range = sel.getRangeAt(0);
+  const anchorNode = range.commonAncestorContainer;
+  const anchorEl = anchorNode.nodeType === 1 ? anchorNode : anchorNode.parentElement;
+  const bubble = anchorEl ? anchorEl.closest(".msg-bubble") : null;
+  if (!bubble) return;
+
+  const text = sel.toString().trim();
+  if (!text) return;
+
+  const rect = range.getBoundingClientRect();
+  if (!rect || (rect.width === 0 && rect.height === 0)) return;
+  showMsgActionMenu(rect.left, Math.max(rect.top - 52, 8), text);
 });
 
 // ===== Приветствие / выбор языка для новых гостей =====
@@ -1166,14 +1321,15 @@ function showLanguageWelcomeIfNeeded() {
 
   const card = document.createElement("div");
   card.style.cssText =
-    "background:#1c1a17;border-radius:16px;padding:32px 24px;max-width:360px;width:100%;text-align:center;color:#e8dfd2;font-family:inherit;";
+    "background:#1d1620;border:1px solid #362a37;border-radius:16px;padding:32px 24px;max-width:360px;width:100%;text-align:center;color:#f4eef2;font-family:inherit;";
 
   const title = document.createElement("div");
-  title.style.cssText = "font-size:22px;margin-bottom:8px;";
+  title.style.cssText =
+    "font-family:'Fraunces',serif;font-style:italic;font-weight:600;font-size:24px;margin-bottom:8px;color:#f4eef2;";
   title.textContent = "Yari";
 
   const text = document.createElement("div");
-  text.style.cssText = "font-size:15px;line-height:1.5;margin-bottom:24px;opacity:0.85;";
+  text.style.cssText = "font-size:15px;line-height:1.5;margin-bottom:24px;color:#9a8b98;";
   text.innerHTML = "Welcome! Choose your language.<br>Добро пожаловать! Выберите язык.";
 
   const btnRow = document.createElement("div");
@@ -1190,13 +1346,13 @@ function showLanguageWelcomeIfNeeded() {
   const ruBtn = document.createElement("button");
   ruBtn.textContent = "Русский";
   ruBtn.style.cssText =
-    "flex:1;padding:12px;border-radius:10px;border:none;background:#d7a24a;color:#141110;font-weight:600;cursor:pointer;";
+    "flex:1;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;font-weight:600;cursor:pointer;";
   ruBtn.addEventListener("click", () => chooseLang("ru"));
 
   const enBtn = document.createElement("button");
   enBtn.textContent = "English";
   enBtn.style.cssText =
-    "flex:1;padding:12px;border-radius:10px;border:1px solid #d7a24a;background:transparent;color:#e8dfd2;font-weight:600;cursor:pointer;";
+    "flex:1;padding:12px;border-radius:10px;border:1px solid #b9a6e8;background:transparent;color:#f4eef2;font-weight:600;cursor:pointer;";
   enBtn.addEventListener("click", () => chooseLang("en"));
 
   btnRow.appendChild(ruBtn);
