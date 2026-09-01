@@ -21,11 +21,11 @@ html, body {
   height: 100%;
   margin: 0;
   background: radial-gradient(
-    ellipse 160% 70% at 50% 100%,
-    rgba(243, 166, 189, 0.34) 0%,
-    rgba(185, 166, 232, 0.18) 35%,
-    rgba(185, 166, 232, 0.06) 60%,
-    transparent 82%
+    ellipse 160% 84% at 50% 100%,
+    rgba(243, 166, 189, 0.42) 0%,
+    rgba(185, 166, 232, 0.20) 38%,
+    rgba(185, 166, 232, 0.07) 64%,
+    transparent 88%
   ), var(--panther);
   color: var(--text);
   font-family: 'Inter', sans-serif;
@@ -43,6 +43,8 @@ body {
    (.app), чтобы лого/кнопки визуально совпадали с чатом под шапкой. */
 .header {
   width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -52,7 +54,6 @@ body {
 }
 
 .header-inner {
-  max-width: 640px;
   margin: 0 auto;
   padding: 6px 20px 14px;
   display: flex;
@@ -81,7 +82,7 @@ body {
   font-family: 'Fraunces', serif;
   font-style: italic;
   font-weight: 600;
-  font-size: 20px;
+  font-size: 23px;
   color: var(--text);
 }
 
@@ -279,6 +280,16 @@ body {
   color: var(--lavender);
 }
 
+/* Кнопка "чаты" — крупнее и тем же шрифтом, что и "Yari" в шапке */
+#chatsToggle {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 16px;
+  text-transform: none;
+  padding: 4px 12px;
+}
+
 /* Круглая кнопка-иконка (профиль) */
 .icon-btn {
   width: 34px;
@@ -448,7 +459,7 @@ body {
 
 /* --- Профиль: аватар + почта (messenger-style), пока без загрузки фото --- */
 .profile-identity {
-  display: none; /* показывается через JS только для залогиненных */
+  display: none; /* включается через JS при инициализации — видна и гостю, и залогиненному */
   position: relative;
   flex-direction: column;
   align-items: center;
@@ -530,18 +541,24 @@ body {
   border-color: var(--lavender);
 }
 
-.profile-edit-inline button {
+.profile-icon-confirm {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
   background: linear-gradient(135deg, var(--peach), var(--lavender));
   color: var(--panther);
   border: none;
   border-radius: 8px;
-  padding: 0 12px;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  text-transform: lowercase;
-  white-space: nowrap;
+  padding: 0;
+}
+
+.profile-icon-confirm svg {
+  width: 16px;
+  height: 16px;
 }
 
 .profile-edit-msg {
@@ -551,27 +568,63 @@ body {
   min-height: 14px;
 }
 
-/* Опасные действия (удаление аккаунта, выход) — красный текст */
-.profile-danger-btn {
+/* Опасные действия (удаление аккаунта, выход) — просто красный кликабельный
+   текст без рамки/фона, чтобы не перегружать профиль лишними "кнопками" */
+.profile-link-danger {
   background: transparent;
-  border: 1px solid var(--danger);
+  border: none;
   color: var(--danger);
-  border-radius: 8px;
-  padding: 8px 12px;
   font-family: 'Inter', sans-serif;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
   text-transform: lowercase;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  align-self: flex-start;
 }
 
-.profile-danger-btn:hover {
-  background: rgba(224, 90, 107, 0.12);
+.profile-link-danger:hover {
+  text-decoration: underline;
 }
 
-/* Кнопка выхода — самый низ панели профиля */
-.profile-logout-btn {
+.profile-link-danger svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* CTA для гостя: "войти / создать аккаунт" — тот же принцип, но не красный */
+.profile-link-cta {
+  background: transparent;
+  border: none;
+  color: var(--lavender);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-transform: lowercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  align-self: flex-start;
+}
+
+.profile-link-cta:hover {
+  text-decoration: underline;
+}
+
+.profile-link-cta svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* Выход / вход-CTA — самый низ панели профиля (виден только один из двух) */
+#profileLogoutBtn, #profileLoginCta {
   margin-top: auto;
 }
 
@@ -628,16 +681,6 @@ body {
 
 .swatch.active {
   border-color: var(--lavender);
-}
-
-.swatch-custom {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--panther-line);
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
 }
 
 .radius-row {
