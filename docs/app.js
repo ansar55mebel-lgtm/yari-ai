@@ -898,7 +898,7 @@ if (resetForm) {
   });
 }
 
-// ===== Разблокировка ролей (тестировщик / разработчик) =====
+// ===== Разблокировка роли разработчика =====
 
 async function tryUnlock(text) {
   try {
@@ -922,7 +922,7 @@ async function tryUnlock(text) {
 
 function renderRolePanel() {
   const role = localStorage.getItem("yari_role");
-  if (!role) return;
+  if (role !== "dev") return;
   if (document.getElementById("rolePanel")) return;
 
   const header = document.querySelector(".header-right");
@@ -939,13 +939,11 @@ function renderRolePanel() {
   infoBtn.addEventListener("click", showDevInfo);
   panel.appendChild(infoBtn);
 
-  if (role === "dev") {
-    const queueBtn = document.createElement("button");
-    queueBtn.className = "chats-toggle";
-    queueBtn.textContent = "очередь";
-    queueBtn.addEventListener("click", showFeedbackQueue);
-    panel.appendChild(queueBtn);
-  }
+  const queueBtn = document.createElement("button");
+  queueBtn.className = "chats-toggle";
+  queueBtn.textContent = "очередь";
+  queueBtn.addEventListener("click", showFeedbackQueue);
+  panel.appendChild(queueBtn);
 
   header.appendChild(panel);
 }
@@ -994,7 +992,7 @@ async function showFeedbackQueue() {
 async function sendFeedback(originalReply, reaction, correction) {
   const token = localStorage.getItem("yari_token");
   try {
-    await fetch(`${API_BASE}/tester/feedback`, {
+    await fetch(`${API_BASE}/dev/feedback`, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
       body: JSON.stringify({ originalReply, reaction, correction }),
@@ -1020,7 +1018,7 @@ function addMessageToDOM(role, text, opts = {}) {
   wrap.appendChild(bubble);
 
   const userRole = localStorage.getItem("yari_role");
-  if (role === "assistant" && (userRole === "tester" || userRole === "dev")) {
+  if (role === "assistant" && userRole === "dev") {
     const feedbackBar = document.createElement("div");
     feedbackBar.style.display = "flex";
     feedbackBar.style.gap = "6px";
