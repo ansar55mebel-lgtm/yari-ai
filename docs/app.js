@@ -21,6 +21,9 @@ const guestBannerBtn = document.getElementById("guestBannerBtn");
 const forgotPasswordLink = document.getElementById("forgotPasswordLink");
 const forgotForm = document.getElementById("forgotForm");
 const resetForm = document.getElementById("resetForm");
+const codeForm = document.getElementById("codeForm");
+const codeInput = document.getElementById("codeInput");
+const codeNewPassword = document.getElementById("codeNewPassword");
 const statusTextEl = document.getElementById("statusText");
 const statusDotsEl = document.getElementById("statusDots");
 const msgActionMenu = document.getElementById("msgActionMenu");
@@ -655,21 +658,30 @@ function showAuthError(msg) {
   if (authError) authError.textContent = msg || "";
 }
 
+// Скрывает все под-формы блока входа/регистрации/восстановления —
+// используется при переключении между вкладками и шагами, чтобы не
+// показывались сразу два несвязанных шага.
+function hideAllAuthSubforms() {
+  if (loginForm) loginForm.style.display = "none";
+  if (registerForm) registerForm.style.display = "none";
+  if (forgotForm) forgotForm.style.display = "none";
+  if (resetForm) resetForm.style.display = "none";
+  if (codeForm) codeForm.style.display = "none";
+}
+
 if (tabLogin && tabRegister) {
   tabLogin.addEventListener("click", () => {
     tabLogin.classList.add("active");
     tabRegister.classList.remove("active");
+    hideAllAuthSubforms();
     loginForm.style.display = "flex";
-    registerForm.style.display = "none";
-    if (forgotForm) forgotForm.style.display = "none";
     showAuthError("");
   });
   tabRegister.addEventListener("click", () => {
     tabRegister.classList.add("active");
     tabLogin.classList.remove("active");
+    hideAllAuthSubforms();
     registerForm.style.display = "flex";
-    loginForm.style.display = "none";
-    if (forgotForm) forgotForm.style.display = "none";
     showAuthError("");
   });
 }
@@ -737,12 +749,22 @@ if (guestBannerBtn) {
 }
 
 // ===== Забыл пароль / сброс пароля =====
+// Юзер вводит email → бэкенд просит Supabase отправить письмо, в котором
+// теперь есть 6-значный код ({{ .Token }} в шаблоне письма, см. Dashboard →
+// Authentication → Emails → Reset password). Юзер вводит код + новый пароль
+// прямо в приложении (codeForm) — это не требует перехода по ссылке на
+// supabase.co, который может быть недоступен из РФ. Код проверяется прямым
+// запросом к Supabase Auth REST API (/auth/v1/verify) через анонимный ключ —
+// это публичная, безопасная операция, служебный ключ для неё не нужен.
+// Ссылка (resetForm, checkRecoveryHash) оставлена как запасной вариант —
+// если она у кого-то откроется, тоже сработает.
+
+let forgotEmail = "";
 
 if (forgotPasswordLink) {
   forgotPasswordLink.addEventListener("click", (e) => {
     e.preventDefault();
-    loginForm.style.display = "none";
-    registerForm.style.display = "none";
+    hideAllAuthSubforms();
     if (forgotForm) forgotForm.style.display = "flex";
     showAuthError("");
   });
@@ -753,13 +775,70 @@ if (forgotForm) {
     e.preventDefault();
     showAuthError("");
     const email = document.getElementById("forgotEmail").value.trim();
+    forgotEmail = email;
     try {
       await fetch(`${API_BASE}/forgot-password`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ email }),
       });
-      showAuthError("Если такой email зарегистрирован — письмо со ссылкой отправлено. Проверь почту (и папку спам).");
+      hideAllAuthSubforms();
+      if (codeForm) {
+        codeForm.style.display = "flex";
+        if (codeInput) codeInput.focus();
+      }
+      showAuthError("Если такой email зарегистрирован — письмо с кодом отправлено. Введи код ниже (проверь и папку спам).");
+    } catch (err) {
+      showAuthError("Проблема с соединением, попробуй ещё раз");
+    }
+  });
+}
+
+if (codeForm) {
+  codeForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showAuthError("");
+    const code = (codeInput.value || "").trim();
+    const password = codeNewPassword.value;
+
+    if (!forgotEmail) {
+      showAuthError("Email потерян — вернись на шаг назад и введи почту заново.");
+      return;
+    }
+    if (!code || !password) return;
+
+    try {
+      const verifyRes = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+        method: "POST",
+        headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "recovery", email: forgotEmail, token: code }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok || !verifyData.access_token) {
+        showAuthError(verifyData.error_description || verifyData.msg || "Неверный или устаревший код, проверь и попробуй снова");
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/reset-password`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ access_token: verifyData.access_token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        showAuthError(data.error || "Не удалось обновить пароль");
+        return;
+      }
+
+      alert("Пароль обновлён. Теперь войди с новым паролем.");
+      codeForm.reset();
+      forgotEmail = "";
+      hideAllAuthSubforms();
+      loginForm.style.display = "flex";
+      if (tabLogin && tabRegister) {
+        tabLogin.classList.add("active");
+        tabRegister.classList.remove("active");
+      }
     } catch (err) {
       showAuthError("Проблема с соединением, попробуй ещё раз");
     }
@@ -768,6 +847,7 @@ if (forgotForm) {
 
 // После перехода по ссылке из письма Supabase добавляет в адрес
 // #access_token=...&type=recovery&... — ловим это при загрузке страницы.
+// Запасной путь на случай, если ссылка у кого-то всё же откроется.
 function checkRecoveryHash() {
   if (location.hash.includes("type=recovery")) {
     const params = new URLSearchParams(location.hash.slice(1));
@@ -777,9 +857,7 @@ function checkRecoveryHash() {
       authPanel.classList.add("open");
       chatsPanel.classList.remove("open");
       profilePanel.classList.remove("open");
-      loginForm.style.display = "none";
-      registerForm.style.display = "none";
-      if (forgotForm) forgotForm.style.display = "none";
+      hideAllAuthSubforms();
       if (resetForm) resetForm.style.display = "flex";
     }
   }
