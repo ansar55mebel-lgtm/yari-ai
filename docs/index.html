@@ -143,8 +143,18 @@
       </form>
       <form class="auth-form" id="forgotForm" style="display:none">
         <input type="email" id="forgotEmail" placeholder="email" required autocomplete="email" />
-        <button type="submit">отправить ссылку для сброса</button>
+        <button type="submit">отправить код на почту</button>
       </form>
+      <!-- Ввод 6-значного кода из письма + новый пароль. Не требует
+           перехода по ссылке — работает даже если домен supabase.co
+           недоступен из РФ. -->
+      <form class="auth-form" id="codeForm" style="display:none">
+        <input type="text" id="codeInput" placeholder="код из письма" required inputmode="numeric" autocomplete="one-time-code" />
+        <input type="password" id="codeNewPassword" placeholder="новый пароль (от 6 символов)" required autocomplete="new-password" />
+        <button type="submit">сохранить новый пароль</button>
+      </form>
+      <!-- Запасной вариант через ссылку из письма — на случай если ссылка
+           у кого-то всё же откроется -->
       <form class="auth-form" id="resetForm" style="display:none">
         <input type="password" id="resetPassword" placeholder="новый пароль (от 6 символов)" required autocomplete="new-password" />
         <button type="submit">сохранить новый пароль</button>
