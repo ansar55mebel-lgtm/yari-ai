@@ -502,6 +502,7 @@ function renderProfileIdentity() {
   if (isLoggedIn()) {
     if (profileEmailEl) profileEmailEl.textContent = localStorage.getItem(AUTH_EMAIL_KEY) || "";
     if (profileEditBtn) profileEditBtn.style.display = "flex";
+    refreshMyUsage();
   } else {
     if (profileEmailEl) profileEmailEl.textContent = tr("guestUser");
     if (profileEditBtn) profileEditBtn.style.display = "none";
@@ -947,172 +948,355 @@ async function tryUnlock(text) {
   }
 }
 
+// ===== Панель разработчика: два постоянных блока по бокам экрана =====
+// Видны сразу после активации dev-кода, без кнопок и попапов.
+// Слева — коды доступа, справа — статистика/модель/очередь правок.
+
 function renderRolePanel() {
   const role = localStorage.getItem("yari_role");
   if (role !== "dev") return;
-  if (document.getElementById("rolePanel")) return;
-
-  const header = document.querySelector(".header-right");
-  if (!header) return;
-
-  const panel = document.createElement("div");
-  panel.id = "rolePanel";
-  panel.style.display = "flex";
-  panel.style.gap = "8px";
-
-  const infoBtn = document.createElement("button");
-  infoBtn.className = "chats-toggle";
-  infoBtn.textContent = "инфо";
-  infoBtn.addEventListener("click", showDevInfo);
-  panel.appendChild(infoBtn);
-
-  const queueBtn = document.createElement("button");
-  queueBtn.className = "chats-toggle";
-  queueBtn.textContent = "очередь";
-  queueBtn.addEventListener("click", showFeedbackQueue);
-  panel.appendChild(queueBtn);
-
-  const statsBtn = document.createElement("button");
-  statsBtn.className = "chats-toggle";
-  statsBtn.textContent = "статистика";
-  statsBtn.addEventListener("click", showDevStats);
-  panel.appendChild(statsBtn);
-
-  header.appendChild(panel);
+  renderDevSidePanels();
 }
 
-async function showDevInfo() {
-  const token = localStorage.getItem("yari_token");
-  try {
-    const res = await fetch(`${API_BASE}/dev/status`, {
-      headers: authHeaders({ "x-yari-token": token }),
-    });
-    const data = await res.json();
-    if (data.error) {
-      alert("нет доступа к этой информации");
-      return;
-    }
-    alert(`модель: ${data.currentModel}\nпатчей стиля: ${data.patchesCount}\nв очереди правока: ${data.feedbackQueueLength}`);
-  } catch (err) {
-    alert("не удалось получить статус");
+function ensureDevPanelContainers() {
+  let left = document.getElementById("devPanelLeft");
+  let right = document.getElementById("devPanelRight");
+  const baseStyle =
+    "position:fixed;top:64px;bottom:12px;width:220px;overflow-y:auto;" +
+    "background:rgba(29,22,32,0.94);border:1px solid #362a37;border-radius:14px;" +
+    "padding:14px;font-size:12px;line-height:1.6;color:#f4eef2;z-index:500;box-sizing:border-box;";
+
+  if (!left) {
+    left = document.createElement("div");
+    left.id = "devPanelLeft";
+    left.style.cssText = baseStyle + "left:12px;";
+    document.body.appendChild(left);
   }
-}
-
-async function showFeedbackQueue() {
-  const token = localStorage.getItem("yari_token");
-  try {
-    const res = await fetch(`${API_BASE}/dev/feedback-queue`, {
-      headers: authHeaders({ "x-yari-token": token }),
-    });
-    const data = await res.json();
-    if (data.error) {
-      alert("нет доступа");
-      return;
-    }
-    if (!data.queue.length) {
-      alert("очередь правок пуста");
-      return;
-    }
-    const text = data.queue
-      .map((f, i) => `${i + 1}) реакция: ${f.reaction || "-"}${f.correction ? "\nправка: " + f.correction : ""}`)
-      .join("\n\n");
-    alert(text);
-  } catch (err) {
-    alert("не удалось получить очередь");
+  if (!right) {
+    right = document.createElement("div");
+    right.id = "devPanelRight";
+    right.style.cssText = baseStyle + "right:12px;";
+    document.body.appendChild(right);
   }
+  return { left, right };
 }
 
-async function showDevStats() {
+function devInputStyle() {
+  return "width:100%;padding:6px;margin-bottom:6px;border-radius:6px;border:1px solid #362a37;background:#110d13;color:#f4eef2;box-sizing:border-box;font-size:12px;";
+}
+
+function devLabel(text) {
+  const el = document.createElement("div");
+  el.style.cssText = "font-weight:600;font-size:13px;margin-bottom:8px;color:#f4eef2;";
+  el.textContent = text;
+  return el;
+}
+
+// ----- Левый блок: коды доступа -----
+
+function renderCodesBlock(container) {
+  container.innerHTML = "";
   const token = localStorage.getItem("yari_token");
-  const existing = document.getElementById("devStatsOverlay");
-  if (existing) existing.remove();
 
-  const overlay = document.createElement("div");
-  overlay.id = "devStatsOverlay";
-  overlay.style.cssText =
-    "position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;";
+  container.appendChild(devLabel("коды доступа"));
 
-  const card = document.createElement("div");
-  card.style.cssText =
-    "background:#1d1620;border:1px solid #362a37;border-radius:16px;padding:24px;max-width:360px;width:100%;color:#f4eef2;font-family:inherit;";
+  const codeInput2 = document.createElement("input");
+  codeInput2.placeholder = "текст кода";
+  codeInput2.style.cssText = devInputStyle();
 
-  const title = document.createElement("div");
-  title.style.cssText = "font-weight:600;font-size:18px;margin-bottom:16px;";
-  title.textContent = "статистика";
+  const kindSelect = document.createElement("select");
+  kindSelect.style.cssText = devInputStyle();
+  [
+    ["daily", "лимит в день"],
+    ["total", "разово (весь бюджет)"],
+    ["unlimited", "безлимит"],
+  ].forEach(([v, l]) => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = l;
+    kindSelect.appendChild(opt);
+  });
+
+  const budgetInput = document.createElement("input");
+  budgetInput.type = "number";
+  budgetInput.placeholder = "лимит токенов";
+  budgetInput.style.cssText = devInputStyle();
+
+  kindSelect.addEventListener("change", () => {
+    budgetInput.style.display = kindSelect.value === "unlimited" ? "none" : "block";
+  });
+
+  const labelInput = document.createElement("input");
+  labelInput.placeholder = "заметка (для кого)";
+  labelInput.style.cssText = devInputStyle();
+
+  const createBtn = document.createElement("button");
+  createBtn.textContent = "создать код";
+  createBtn.style.cssText =
+    "width:100%;padding:8px;border-radius:8px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;font-weight:600;cursor:pointer;margin-bottom:12px;font-size:12px;";
+
+  const listBox = document.createElement("div");
+
+  async function loadCodes() {
+    listBox.textContent = "загружаю…";
+    try {
+      const res = await fetch(`${API_BASE}/dev/codes`, {
+        headers: authHeaders({ "x-yari-token": token }),
+      });
+      const data = await res.json();
+      if (data.error || !data.codes) {
+        listBox.textContent = "нет доступа";
+        return;
+      }
+      if (!data.codes.length) {
+        listBox.textContent = "кодов пока нет";
+        return;
+      }
+      listBox.innerHTML = "";
+      data.codes.forEach((c) => {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:6px 0;border-bottom:1px solid #362a37;";
+
+        const kindLabel = c.kind === "daily" ? "в день" : c.kind === "total" ? "разово" : "безлимит";
+        const info = document.createElement("div");
+        info.textContent =
+          `${c.code} — ${kindLabel}` +
+          (c.token_budget ? ` (${c.token_budget})` : "") +
+          (c.label ? ` · ${c.label}` : "") +
+          (c.active ? "" : " · выкл");
+        info.style.marginBottom = "4px";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.textContent = c.active ? "выключить" : "включить";
+        toggleBtn.style.cssText =
+          "font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
+        toggleBtn.addEventListener("click", async () => {
+          await fetch(`${API_BASE}/dev/toggle-code`, {
+            method: "POST",
+            headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
+            body: JSON.stringify({ code: c.code, active: !c.active }),
+          });
+          loadCodes();
+        });
+
+        row.appendChild(info);
+        row.appendChild(toggleBtn);
+        listBox.appendChild(row);
+      });
+    } catch (err) {
+      listBox.textContent = "не удалось загрузить";
+    }
+  }
+
+  createBtn.addEventListener("click", async () => {
+    const code = codeInput2.value.trim();
+    if (!code) return;
+    const kind = kindSelect.value;
+    const tokenBudget = kind === "unlimited" ? null : Number(budgetInput.value) || null;
+    if (kind !== "unlimited" && !tokenBudget) {
+      alert("укажи лимит токенов");
+      return;
+    }
+    const res = await fetch(`${API_BASE}/dev/create-code`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
+      body: JSON.stringify({ code, kind, tokenBudget, label: labelInput.value.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) {
+      alert(data.error || "не удалось создать код");
+      return;
+    }
+    codeInput2.value = "";
+    labelInput.value = "";
+    loadCodes();
+  });
+
+  container.appendChild(codeInput2);
+  container.appendChild(kindSelect);
+  container.appendChild(budgetInput);
+  container.appendChild(labelInput);
+  container.appendChild(createBtn);
+  container.appendChild(listBox);
+
+  loadCodes();
+}
+
+// ----- Правый блок: статистика по токенам + модель + очередь правок -----
+
+function renderStatsBlock(container) {
+  container.innerHTML = "";
+  const token = localStorage.getItem("yari_token");
+
+  container.appendChild(devLabel("статистика"));
 
   const rangeRow = document.createElement("div");
-  rangeRow.style.cssText = "display:flex;gap:8px;margin-bottom:16px;";
+  rangeRow.style.cssText = "display:flex;gap:6px;margin-bottom:10px;";
 
   const today = new Date().toISOString().slice(0, 10);
   const fromInput = document.createElement("input");
   fromInput.type = "date";
   fromInput.value = today;
-  fromInput.style.cssText =
-    "flex:1;padding:8px;border-radius:8px;border:1px solid #362a37;background:#110d13;color:#f4eef2;min-width:0;";
+  fromInput.style.cssText = devInputStyle() + "flex:1;min-width:0;padding:4px;";
 
   const toInput = document.createElement("input");
   toInput.type = "date";
   toInput.value = today;
-  toInput.style.cssText =
-    "flex:1;padding:8px;border-radius:8px;border:1px solid #362a37;background:#110d13;color:#f4eef2;min-width:0;";
+  toInput.style.cssText = devInputStyle() + "flex:1;min-width:0;padding:4px;";
 
   rangeRow.appendChild(fromInput);
   rangeRow.appendChild(toInput);
 
-  const resultBox = document.createElement("div");
-  resultBox.style.cssText = "font-size:14px;line-height:1.7;white-space:pre-wrap;";
-  resultBox.textContent = "загружаю…";
+  const gaugeWrap = document.createElement("div");
+  gaugeWrap.style.cssText = "margin-bottom:4px;";
+  const gaugeBar = document.createElement("div");
+  gaugeBar.style.cssText =
+    "height:8px;border-radius:4px;background:#362a37;overflow:hidden;margin-bottom:4px;";
+  const gaugeFill = document.createElement("div");
+  gaugeFill.style.cssText =
+    "height:100%;background:linear-gradient(90deg,#f3a6bd,#b9a6e8);width:0%;transition:width 0.3s;";
+  gaugeBar.appendChild(gaugeFill);
+  gaugeWrap.appendChild(gaugeBar);
 
-  const loadBtn = document.createElement("button");
-  loadBtn.textContent = "показать";
-  loadBtn.style.cssText =
-    "width:100%;padding:10px;margin-top:16px;border-radius:10px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;font-weight:600;cursor:pointer;";
+  const statsText = document.createElement("div");
+  statsText.style.cssText = "white-space:pre-wrap;margin-bottom:14px;";
+  statsText.textContent = "загружаю…";
 
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "закрыть";
-  closeBtn.style.cssText =
-    "width:100%;padding:10px;margin-top:8px;border-radius:10px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
-  closeBtn.addEventListener("click", () => overlay.remove());
+  const modelText = document.createElement("div");
+  modelText.style.cssText = "white-space:pre-wrap;margin-bottom:10px;color:#9a8b98;";
+  modelText.textContent = "загружаю…";
+
+  const queueLabel = devLabel("очередь правок");
+  const queueBox = document.createElement("div");
 
   async function loadStats() {
-    resultBox.textContent = "загружаю…";
+    statsText.textContent = "загружаю…";
     try {
       const res = await fetch(`${API_BASE}/dev/stats?from=${fromInput.value}&to=${toInput.value}`, {
         headers: authHeaders({ "x-yari-token": token }),
       });
       const data = await res.json();
       if (data.error) {
-        resultBox.textContent = "нет доступа";
+        statsText.textContent = "нет доступа";
         return;
       }
       const totalMessages = data.guestMessages + data.userMessages;
       const avgTokens = totalMessages > 0 ? data.tokensUsed / totalMessages : 0;
       const remaining = Math.max(0, data.dailyBudget - data.tokensUsed);
       const estLeft = avgTokens > 0 ? Math.round(remaining / avgTokens) : "—";
+      const pct = Math.min(100, Math.round((data.tokensUsed / data.dailyBudget) * 100));
+      gaugeFill.style.width = pct + "%";
 
-      resultBox.textContent =
-        `период: ${data.from} — ${data.to}\n\n` +
-        `сообщений (гости): ${data.guestMessages}\n` +
-        `сообщений (юзеры): ${data.userMessages}\n` +
+      statsText.textContent =
+        `${data.from} — ${data.to}\n\n` +
+        `гостей: ${data.guestMessages}\n` +
+        `юзеров: ${data.userMessages}\n` +
         `регистраций: ${data.registrations}\n\n` +
-        `токенов потрачено: ${data.tokensUsed} / ${data.dailyBudget}\n` +
-        `≈ хватит ещё сообщений: ${estLeft}`;
+        `токены: ${data.tokensUsed} / ${data.dailyBudget}\n` +
+        `≈ хватит сообщений: ${estLeft}`;
     } catch (err) {
-      resultBox.textContent = "не удалось загрузить";
+      statsText.textContent = "не удалось загрузить";
     }
   }
 
-  loadBtn.addEventListener("click", loadStats);
+  fromInput.addEventListener("change", loadStats);
+  toInput.addEventListener("change", loadStats);
 
-  card.appendChild(title);
-  card.appendChild(rangeRow);
-  card.appendChild(resultBox);
-  card.appendChild(loadBtn);
-  card.appendChild(closeBtn);
-  overlay.appendChild(card);
-  document.body.appendChild(overlay);
+  async function loadModelInfo() {
+    try {
+      const res = await fetch(`${API_BASE}/dev/status`, {
+        headers: authHeaders({ "x-yari-token": token }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        modelText.textContent = "нет доступа";
+        return;
+      }
+      modelText.textContent = `модель: ${data.currentModel}\nпатчей стиля: ${data.patchesCount}`;
+    } catch (err) {
+      modelText.textContent = "не удалось загрузить";
+    }
+  }
+
+  async function loadQueue() {
+    queueBox.textContent = "загружаю…";
+    try {
+      const res = await fetch(`${API_BASE}/dev/feedback-queue`, {
+        headers: authHeaders({ "x-yari-token": token }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        queueBox.textContent = "нет доступа";
+        return;
+      }
+      if (!data.queue.length) {
+        queueBox.textContent = "пусто";
+        return;
+      }
+      queueBox.innerHTML = "";
+      data.queue.forEach((f, i) => {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:6px 0;border-bottom:1px solid #362a37;";
+
+        const text = document.createElement("div");
+        text.style.marginBottom = "4px";
+        text.textContent = `реакция: ${f.reaction || "-"}${f.correction ? " · правка: " + f.correction : ""}`;
+        row.appendChild(text);
+
+        if (f.correction) {
+          const approveBtn = document.createElement("button");
+          approveBtn.textContent = "принять";
+          approveBtn.style.cssText =
+            "font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;cursor:pointer;margin-right:6px;";
+          approveBtn.addEventListener("click", async () => {
+            await fetch(`${API_BASE}/dev/approve-patch`, {
+              method: "POST",
+              headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
+              body: JSON.stringify({ index: i }),
+            });
+            loadQueue();
+            loadModelInfo();
+          });
+          row.appendChild(approveBtn);
+        }
+
+        const dismissBtn = document.createElement("button");
+        dismissBtn.textContent = "отклонить";
+        dismissBtn.style.cssText =
+          "font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
+        dismissBtn.addEventListener("click", async () => {
+          await fetch(`${API_BASE}/dev/dismiss-feedback`, {
+            method: "POST",
+            headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
+            body: JSON.stringify({ index: i }),
+          });
+          loadQueue();
+        });
+        row.appendChild(dismissBtn);
+
+        queueBox.appendChild(row);
+      });
+    } catch (err) {
+      queueBox.textContent = "не удалось загрузить";
+    }
+  }
+
+  container.appendChild(rangeRow);
+  container.appendChild(gaugeWrap);
+  container.appendChild(statsText);
+  container.appendChild(modelText);
+  container.appendChild(queueLabel);
+  container.appendChild(queueBox);
 
   loadStats();
+  loadModelInfo();
+  loadQueue();
+}
+
+function renderDevSidePanels() {
+  const { left, right } = ensureDevPanelContainers();
+  renderCodesBlock(left);
+  renderStatsBlock(right);
 }
 
 async function sendFeedback(originalReply, reaction, correction) {
@@ -1279,12 +1463,23 @@ async function sendMessage(text) {
 
     if (!res.ok) {
       typingEl.remove();
-      addMessageToDOM("assistant", `у меня тут что-то с соединением (код ${res.status}). попробуй ещё раз.`);
+      if (res.status === 403) {
+        const errData = await res.json().catch(() => ({}));
+        addMessageToDOM(
+          "assistant",
+          errData.limitReached
+            ? "на сегодня твой лимит токенов исчерпан, возвращайся завтра."
+            : `у меня тут что-то с соединением (код ${res.status}). попробуй ещё раз.`
+        );
+      } else {
+        addMessageToDOM("assistant", `у меня тут что-то с соединением (код ${res.status}). попробуй ещё раз.`);
+      }
       return;
     }
 
     const data = await res.json();
     typingEl.remove();
+    refreshMyUsage();
 
     if (data.reply) {
       c.messages.push({ role: "assistant", content: data.reply });
@@ -1361,6 +1556,9 @@ form.addEventListener("submit", async (e) => {
 
   const unlocked = await tryUnlock(text);
   if (unlocked) return;
+
+  const redeemed = await tryRedeemCode(text);
+  if (redeemed) return;
 
   let finalText = text;
   if (pendingQuote) {
