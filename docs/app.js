@@ -179,6 +179,7 @@ const ANON_KEY =
 
 const AUTH_TOKEN_KEY = "yari_auth_token";
 const AUTH_EMAIL_KEY = "yari_auth_email";
+const REFRESH_TOKEN_KEY = "yari_auth_refresh_token";
 
 function isLoggedIn() {
   return !!localStorage.getItem(AUTH_TOKEN_KEY);
@@ -630,7 +631,31 @@ function renderAuthUI() {
 function handleLogout() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_EMAIL_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   location.reload();
+}
+
+// Access-токен Supabase живёт около часа. Вместо разлогина при его
+// истечении — пробуем обновить сессию через refresh-токен напрямую
+// через Supabase Auth REST API (публичная операция, анонимного ключа
+// достаточно). Если и это не сработало — тогда уже разлогиниваем.
+async function refreshAuthToken() {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) return false;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.access_token) return false;
+    localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
+    if (data.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 async function importGuestChatsIfAny() {
@@ -705,6 +730,7 @@ if (loginForm) {
       }
       localStorage.setItem(AUTH_TOKEN_KEY, data.token);
       localStorage.setItem(AUTH_EMAIL_KEY, data.email);
+      if (data.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
       await importGuestChatsIfAny();
       location.reload();
     } catch (err) {
@@ -732,6 +758,7 @@ if (registerForm) {
       }
       localStorage.setItem(AUTH_TOKEN_KEY, data.token);
       localStorage.setItem(AUTH_EMAIL_KEY, data.email);
+      if (data.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
       await importGuestChatsIfAny();
       location.reload();
     } catch (err) {
@@ -945,6 +972,12 @@ function renderRolePanel() {
   queueBtn.addEventListener("click", showFeedbackQueue);
   panel.appendChild(queueBtn);
 
+  const statsBtn = document.createElement("button");
+  statsBtn.className = "chats-toggle";
+  statsBtn.textContent = "статистика";
+  statsBtn.addEventListener("click", showDevStats);
+  panel.appendChild(statsBtn);
+
   header.appendChild(panel);
 }
 
@@ -987,6 +1020,99 @@ async function showFeedbackQueue() {
   } catch (err) {
     alert("не удалось получить очередь");
   }
+}
+
+async function showDevStats() {
+  const token = localStorage.getItem("yari_token");
+  const existing = document.getElementById("devStatsOverlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "devStatsOverlay";
+  overlay.style.cssText =
+    "position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;";
+
+  const card = document.createElement("div");
+  card.style.cssText =
+    "background:#1d1620;border:1px solid #362a37;border-radius:16px;padding:24px;max-width:360px;width:100%;color:#f4eef2;font-family:inherit;";
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:600;font-size:18px;margin-bottom:16px;";
+  title.textContent = "статистика";
+
+  const rangeRow = document.createElement("div");
+  rangeRow.style.cssText = "display:flex;gap:8px;margin-bottom:16px;";
+
+  const today = new Date().toISOString().slice(0, 10);
+  const fromInput = document.createElement("input");
+  fromInput.type = "date";
+  fromInput.value = today;
+  fromInput.style.cssText =
+    "flex:1;padding:8px;border-radius:8px;border:1px solid #362a37;background:#110d13;color:#f4eef2;min-width:0;";
+
+  const toInput = document.createElement("input");
+  toInput.type = "date";
+  toInput.value = today;
+  toInput.style.cssText =
+    "flex:1;padding:8px;border-radius:8px;border:1px solid #362a37;background:#110d13;color:#f4eef2;min-width:0;";
+
+  rangeRow.appendChild(fromInput);
+  rangeRow.appendChild(toInput);
+
+  const resultBox = document.createElement("div");
+  resultBox.style.cssText = "font-size:14px;line-height:1.7;white-space:pre-wrap;";
+  resultBox.textContent = "загружаю…";
+
+  const loadBtn = document.createElement("button");
+  loadBtn.textContent = "показать";
+  loadBtn.style.cssText =
+    "width:100%;padding:10px;margin-top:16px;border-radius:10px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;font-weight:600;cursor:pointer;";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "закрыть";
+  closeBtn.style.cssText =
+    "width:100%;padding:10px;margin-top:8px;border-radius:10px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
+  closeBtn.addEventListener("click", () => overlay.remove());
+
+  async function loadStats() {
+    resultBox.textContent = "загружаю…";
+    try {
+      const res = await fetch(`${API_BASE}/dev/stats?from=${fromInput.value}&to=${toInput.value}`, {
+        headers: authHeaders({ "x-yari-token": token }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        resultBox.textContent = "нет доступа";
+        return;
+      }
+      const totalMessages = data.guestMessages + data.userMessages;
+      const avgTokens = totalMessages > 0 ? data.tokensUsed / totalMessages : 0;
+      const remaining = Math.max(0, data.dailyBudget - data.tokensUsed);
+      const estLeft = avgTokens > 0 ? Math.round(remaining / avgTokens) : "—";
+
+      resultBox.textContent =
+        `период: ${data.from} — ${data.to}\n\n` +
+        `сообщений (гости): ${data.guestMessages}\n` +
+        `сообщений (юзеры): ${data.userMessages}\n` +
+        `регистраций: ${data.registrations}\n\n` +
+        `токенов потрачено: ${data.tokensUsed} / ${data.dailyBudget}\n` +
+        `≈ хватит ещё сообщений: ${estLeft}`;
+    } catch (err) {
+      resultBox.textContent = "не удалось загрузить";
+    }
+  }
+
+  loadBtn.addEventListener("click", loadStats);
+
+  card.appendChild(title);
+  card.appendChild(rangeRow);
+  card.appendChild(resultBox);
+  card.appendChild(loadBtn);
+  card.appendChild(closeBtn);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  loadStats();
 }
 
 async function sendFeedback(originalReply, reaction, correction) {
@@ -1449,8 +1575,17 @@ function showLanguageWelcomeIfNeeded() {
     try {
       await loadServerChats();
     } catch (e) {
-      handleLogout();
-      return;
+      const refreshed = await refreshAuthToken();
+      if (!refreshed) {
+        handleLogout();
+        return;
+      }
+      try {
+        await loadServerChats();
+      } catch (e2) {
+        handleLogout();
+        return;
+      }
     }
   } else {
     loadGuestChat();
