@@ -928,9 +928,23 @@ if (resetForm) {
 
 // ===== Разблокировка роли разработчика =====
 
+// Общий fetch с таймаутом — если сеть подвиснет без ответа, не ждём вечно,
+// а через FETCH_TIMEOUT_MS считаем, что это не код, и идём дальше.
+const FETCH_TIMEOUT_MS = 4000;
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function tryUnlock(text) {
   try {
-    const res = await fetch(`${API_BASE}/unlock`, {
+    const res = await fetchWithTimeout(`${API_BASE}/unlock`, {
       method: "POST",
       headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ code: text.trim() }),
@@ -940,6 +954,28 @@ async function tryUnlock(text) {
       localStorage.setItem("yari_role", data.role);
       localStorage.setItem("yari_token", data.token);
       renderRolePanel();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Активация кода доступа (даёт повышенный/безлимитный лимит токенов).
+// Требует аккаунт — лимит привязан к user_id.
+async function tryRedeemCode(text) {
+  if (!isLoggedIn()) return false;
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/redeem-code`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ code: text.trim() }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert("код активирован");
+      refreshMyUsage();
       return true;
     }
     return false;
