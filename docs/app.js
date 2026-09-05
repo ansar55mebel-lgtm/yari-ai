@@ -1043,6 +1043,33 @@ function ensureDevPanelContainers() {
   return { left, right };
 }
 
+// Строка "потрачено N / M токенов" под email в профиле.
+async function refreshMyUsage() {
+  if (!isLoggedIn()) return;
+  let usageEl = document.getElementById("usageInfo");
+  if (!usageEl && profileEmailEl && profileEmailEl.parentElement) {
+    usageEl = document.createElement("div");
+    usageEl.id = "usageInfo";
+    usageEl.style.cssText = "font-size:12px;color:#9a8b98;margin-top:2px;";
+    profileEmailEl.insertAdjacentElement("afterend", usageEl);
+  }
+  if (!usageEl) return;
+  try {
+    const res = await fetch(`${API_BASE}/my-usage`, { headers: authHeaders() });
+    const data = await res.json();
+    if (data.error) return;
+    if (data.tier === "unlimited") {
+      usageEl.textContent = "лимит токенов: безлимит";
+    } else if (data.tier === "total") {
+      usageEl.textContent = `потрачено: ${data.tokensUsedTotal} / ${data.totalBudget} токенов`;
+    } else {
+      usageEl.textContent = `сегодня: ${data.tokensUsedToday} / ${data.dailyBudget} токенов`;
+    }
+  } catch (err) {
+    // тихо промолчим
+  }
+}
+
 function devInputStyle() {
   return "width:100%;padding:6px;margin-bottom:6px;border-radius:6px;border:1px solid #362a37;background:#110d13;color:#f4eef2;box-sizing:border-box;font-size:12px;";
 }
