@@ -962,9 +962,9 @@ function ensureDevPanelContainers() {
   let left = document.getElementById("devPanelLeft");
   let right = document.getElementById("devPanelRight");
   const baseStyle =
-    "position:fixed;top:64px;bottom:12px;width:220px;overflow-y:auto;" +
+    "position:fixed;top:64px;max-height:70vh;width:190px;overflow-y:auto;" +
     "background:rgba(29,22,32,0.94);border:1px solid #362a37;border-radius:14px;" +
-    "padding:14px;font-size:12px;line-height:1.6;color:#f4eef2;z-index:500;box-sizing:border-box;";
+    "padding:12px;font-size:12px;line-height:1.5;color:#f4eef2;z-index:500;box-sizing:border-box;";
 
   if (!left) {
     left = document.createElement("div");
@@ -1159,15 +1159,8 @@ function renderStatsBlock(container) {
   gaugeWrap.appendChild(gaugeBar);
 
   const statsText = document.createElement("div");
-  statsText.style.cssText = "white-space:pre-wrap;margin-bottom:14px;";
+  statsText.style.cssText = "white-space:pre-wrap;";
   statsText.textContent = "загружаю…";
-
-  const modelText = document.createElement("div");
-  modelText.style.cssText = "white-space:pre-wrap;margin-bottom:10px;color:#9a8b98;";
-  modelText.textContent = "загружаю…";
-
-  const queueLabel = devLabel("очередь правок");
-  const queueBox = document.createElement("div");
 
   async function loadStats() {
     statsText.textContent = "загружаю…";
@@ -1202,114 +1195,171 @@ function renderStatsBlock(container) {
   fromInput.addEventListener("change", loadStats);
   toInput.addEventListener("change", loadStats);
 
-  async function loadModelInfo() {
-    try {
-      const res = await fetch(`${API_BASE}/dev/status`, {
-        headers: authHeaders({ "x-yari-token": token }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        modelText.textContent = "нет доступа";
-        return;
-      }
-      modelText.textContent = `модель: ${data.currentModel}\nпатчей стиля: ${data.patchesCount}`;
-    } catch (err) {
-      modelText.textContent = "не удалось загрузить";
-    }
-  }
-
-  async function loadQueue() {
-    queueBox.textContent = "загружаю…";
-    try {
-      const res = await fetch(`${API_BASE}/dev/feedback-queue`, {
-        headers: authHeaders({ "x-yari-token": token }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        queueBox.textContent = "нет доступа";
-        return;
-      }
-      if (!data.queue.length) {
-        queueBox.textContent = "пусто";
-        return;
-      }
-      queueBox.innerHTML = "";
-      data.queue.forEach((f, i) => {
-        const row = document.createElement("div");
-        row.style.cssText = "padding:6px 0;border-bottom:1px solid #362a37;";
-
-        const text = document.createElement("div");
-        text.style.marginBottom = "4px";
-        text.textContent = `реакция: ${f.reaction || "-"}${f.correction ? " · правка: " + f.correction : ""}`;
-        row.appendChild(text);
-
-        if (f.correction) {
-          const approveBtn = document.createElement("button");
-          approveBtn.textContent = "принять";
-          approveBtn.style.cssText =
-            "font-size:11px;padding:3px 8px;border-radius:6px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;cursor:pointer;margin-right:6px;";
-          approveBtn.addEventListener("click", async () => {
-            await fetch(`${API_BASE}/dev/approve-patch`, {
-              method: "POST",
-              headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
-              body: JSON.stringify({ index: i }),
-            });
-            loadQueue();
-            loadModelInfo();
-          });
-          row.appendChild(approveBtn);
-        }
-
-        const dismissBtn = document.createElement("button");
-        dismissBtn.textContent = "отклонить";
-        dismissBtn.style.cssText =
-          "font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
-        dismissBtn.addEventListener("click", async () => {
-          await fetch(`${API_BASE}/dev/dismiss-feedback`, {
-            method: "POST",
-            headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
-            body: JSON.stringify({ index: i }),
-          });
-          loadQueue();
-        });
-        row.appendChild(dismissBtn);
-
-        queueBox.appendChild(row);
-      });
-    } catch (err) {
-      queueBox.textContent = "не удалось загрузить";
-    }
-  }
-
   container.appendChild(rangeRow);
   container.appendChild(gaugeWrap);
   container.appendChild(statsText);
-  container.appendChild(modelText);
-  container.appendChild(queueLabel);
-  container.appendChild(queueBox);
 
   loadStats();
-  loadModelInfo();
-  loadQueue();
 }
 
 function renderDevSidePanels() {
   const { left, right } = ensureDevPanelContainers();
   renderCodesBlock(left);
   renderStatsBlock(right);
+  appendProblemsBlock(right);
 }
 
-async function sendFeedback(originalReply, reaction, correction) {
+// Технические жалобы (дизлайк с причиной "техническая") — отдельный блок,
+// а не мелкая кнопка, чтобы дев видел их сразу.
+function appendProblemsBlock(container) {
   const token = localStorage.getItem("yari_token");
+
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "margin-top:16px;padding-top:12px;border-top:1px solid #362a37;";
+  wrap.appendChild(devLabel("проблемы"));
+
+  const listBox = document.createElement("div");
+  listBox.textContent = "загружаю…";
+  wrap.appendChild(listBox);
+  container.appendChild(wrap);
+
+  async function loadProblems() {
+    listBox.textContent = "загружаю…";
+    try {
+      const res = await fetch(`${API_BASE}/dev/problems`, {
+        headers: authHeaders({ "x-yari-token": token }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        listBox.textContent = "нет доступа";
+        return;
+      }
+      if (!data.problems.length) {
+        listBox.textContent = "пусто";
+        return;
+      }
+      listBox.innerHTML = "";
+      data.problems.forEach((p) => {
+        const row = document.createElement("div");
+        row.style.cssText = "padding:6px 0;border-bottom:1px solid #362a37;";
+
+        const text = document.createElement("div");
+        text.style.marginBottom = "4px";
+        text.textContent = p.correction || "(без описания)";
+        row.appendChild(text);
+
+        const dismissBtn = document.createElement("button");
+        dismissBtn.textContent = "решено";
+        dismissBtn.style.cssText =
+          "font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
+        dismissBtn.addEventListener("click", async () => {
+          await fetch(`${API_BASE}/dev/dismiss-problem`, {
+            method: "POST",
+            headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
+            body: JSON.stringify({ id: p.id }),
+          });
+          loadProblems();
+        });
+        row.appendChild(dismissBtn);
+        listBox.appendChild(row);
+      });
+    } catch (err) {
+      listBox.textContent = "не удалось загрузить";
+    }
+  }
+
+  loadProblems();
+}
+
+// Фидбек по ответу Яри — открыт всем пользователям, не только dev.
+async function sendFeedback(originalReply, reaction, category, correction) {
   try {
-    await fetch(`${API_BASE}/dev/feedback`, {
+    await fetch(`${API_BASE}/feedback`, {
       method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json", "x-yari-token": token }),
-      body: JSON.stringify({ originalReply, reaction, correction }),
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ originalReply, reaction, category, correction }),
     });
   } catch (err) {
     // тихо промолчим
   }
+}
+
+// Компактное окошко выбора причины дизлайка — техническая или по стилю/сути ответа.
+function openDislikeReasonPopup(onSubmit) {
+  const existing = document.getElementById("dislikeReasonOverlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "dislikeReasonOverlay";
+  overlay.style.cssText =
+    "position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;";
+
+  const card = document.createElement("div");
+  card.style.cssText =
+    "background:#1d1620;border:1px solid #362a37;border-radius:14px;padding:18px;max-width:280px;width:100%;color:#f4eef2;font-family:inherit;box-sizing:border-box;";
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:600;font-size:14px;margin-bottom:10px;";
+  title.textContent = "что не так?";
+
+  let selectedCategory = null;
+
+  const catRow = document.createElement("div");
+  catRow.style.cssText = "display:flex;gap:6px;margin-bottom:10px;";
+
+  const techBtn = document.createElement("button");
+  techBtn.textContent = "техническая";
+  const aiBtn = document.createElement("button");
+  aiBtn.textContent = "реакция ии";
+
+  [techBtn, aiBtn].forEach((btn) => {
+    btn.style.cssText =
+      "flex:1;padding:8px;border-radius:8px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;font-size:12px;";
+  });
+
+  function selectCategory(cat, btn) {
+    selectedCategory = cat;
+    [techBtn, aiBtn].forEach((b) => {
+      b.style.background = "transparent";
+      b.style.color = "#f4eef2";
+    });
+    btn.style.background = "linear-gradient(135deg,#f3a6bd,#b9a6e8)";
+    btn.style.color = "#110d13";
+  }
+  techBtn.addEventListener("click", () => selectCategory("technical", techBtn));
+  aiBtn.addEventListener("click", () => selectCategory("ai", aiBtn));
+
+  catRow.appendChild(techBtn);
+  catRow.appendChild(aiBtn);
+
+  const detailInput = document.createElement("textarea");
+  detailInput.placeholder = "коротко опиши (необязательно)";
+  detailInput.rows = 3;
+  detailInput.style.cssText =
+    "width:100%;padding:8px;margin-bottom:12px;border-radius:8px;border:1px solid #362a37;background:#110d13;color:#f4eef2;box-sizing:border-box;font-family:inherit;resize:none;";
+
+  const submitBtn = document.createElement("button");
+  submitBtn.textContent = "отправить";
+  submitBtn.style.cssText =
+    "width:100%;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#f3a6bd,#b9a6e8);color:#110d13;font-weight:600;cursor:pointer;margin-bottom:8px;";
+  submitBtn.addEventListener("click", () => {
+    onSubmit(selectedCategory, detailInput.value.trim());
+    overlay.remove();
+  });
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = "отмена";
+  cancelBtn.style.cssText =
+    "width:100%;padding:8px;border-radius:10px;border:1px solid #362a37;background:transparent;color:#f4eef2;cursor:pointer;";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+
+  card.appendChild(title);
+  card.appendChild(catRow);
+  card.appendChild(detailInput);
+  card.appendChild(submitBtn);
+  card.appendChild(cancelBtn);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 }
 
 function addMessageToDOM(role, text, opts = {}) {
@@ -1327,34 +1377,49 @@ function addMessageToDOM(role, text, opts = {}) {
   wrap.appendChild(label);
   wrap.appendChild(bubble);
 
-  const userRole = localStorage.getItem("yari_role");
-  if (role === "assistant" && userRole === "dev") {
+  if (role === "assistant") {
     const feedbackBar = document.createElement("div");
     feedbackBar.style.display = "flex";
-    feedbackBar.style.gap = "6px";
+    feedbackBar.style.gap = "2px";
     feedbackBar.style.marginTop = "4px";
 
+    const iconBtnStyle =
+      "background:transparent;border:none;color:#9a8b98;font-size:14px;cursor:pointer;padding:3px 7px;border-radius:6px;line-height:1;";
+
     const up = document.createElement("button");
-    up.textContent = "👍";
-    up.className = "chats-toggle";
-    up.addEventListener("click", () => sendFeedback(text, "up"));
+    up.innerHTML = "▲";
+    up.title = "нравится";
+    up.style.cssText = iconBtnStyle;
+    up.addEventListener("click", () => {
+      sendFeedback(text, "up");
+      pendingReactionNote = "пользователь поставил лайк этому твоему ответу.";
+      up.style.color = "#b9e8a6";
+      down.style.color = "#9a8b98";
+    });
 
     const down = document.createElement("button");
-    down.textContent = "👎";
-    down.className = "chats-toggle";
-    down.addEventListener("click", () => sendFeedback(text, "down"));
-
-    const fix = document.createElement("button");
-    fix.textContent = "исправить";
-    fix.className = "chats-toggle";
-    fix.addEventListener("click", () => {
-      const correction = prompt("как надо было ответить:");
-      if (correction) sendFeedback(text, null, correction);
+    down.innerHTML = "▼";
+    down.title = "не нравится";
+    down.style.cssText = iconBtnStyle;
+    down.addEventListener("click", () => {
+      openDislikeReasonPopup((category, detail) => {
+        sendFeedback(text, "down", category, detail);
+        const categoryLabel =
+          category === "technical"
+            ? "техническая проблема"
+            : category === "ai"
+            ? "реакция на твой стиль/содержание ответа"
+            : "без уточнения";
+        pendingReactionNote = `пользователь поставил дизлайк этому твоему ответу. причина: ${categoryLabel}${
+          detail ? " — " + detail : ""
+        }.`;
+        down.style.color = "#e88a9a";
+        up.style.color = "#9a8b98";
+      });
     });
 
     feedbackBar.appendChild(up);
     feedbackBar.appendChild(down);
-    feedbackBar.appendChild(fix);
     wrap.appendChild(feedbackBar);
   }
 
@@ -1458,8 +1523,10 @@ async function sendMessage(text) {
       body: JSON.stringify({
         messages: c.messages.map((m) => ({ role: m.role, content: m.content })),
         disableFlair: looksLikeFlairOff(text),
+        reactionNote: pendingReactionNote,
       }),
     });
+    pendingReactionNote = null;
 
     if (!res.ok) {
       typingEl.remove();
@@ -1584,6 +1651,9 @@ input.addEventListener("input", () => {
 // выделенного фрагмента (чтобы не копировать/цитировать лишнее).
 
 let pendingQuote = null;
+// Пометка о последней реакции (лайк/дизлайк) — подмешивается в следующее
+// сообщение на бэкенде, чтобы Яри "увидела" реакцию без отдельного запроса.
+let pendingReactionNote = null;
 
 function setQuote(text) {
   pendingQuote = text;
